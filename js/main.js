@@ -1,0 +1,347 @@
+var SQL_FROM_REGEX = /FROM\s+([^\s;]+)/mi;
+var SQL_LIMIT_REGEX = /LIMIT\s+(\d+)(?:\s*,\s*(\d+))?/mi;
+
+var db = null;
+var rowCounts = [];
+var editor = ace.edit("sql-editor");
+var bottomBarDefaultPos = null, bottomBarDisplayStyle = null;
+var errorBox = $("#error");
+
+var fileReaderOpts = {
+    readAsDefault: "ArrayBuffer", on: {
+        load: function (e, file) {
+            extractFileNameWithoutExt(file.name);
+            setIsLoading(true);
+
+            resetTableList();
+
+            setTimeout(function () {
+                var tables;
+                try {
+                    db = new SQL.Database(new Uint8Array(e.target.result));
+
+                    //Get all table names from master table
+                    tables = db.prepare("SELECT * FROM sqlite_master WHERE type='table' ORDER BY name");
+                } catch (ex) {
+                    setIsLoading(false);
+                    alert(ex);
+                    return;
+                }
+
+                var firstTableName = null;
+                var tableList = $("#tables");
+
+                while (tables.step()) {
+                    var rowObj = tables.getAsObject();
+                    var name = rowObj.name;
+
+                    if (firstTableName === null) {
+                        firstTableName = name;
+                    }
+                    var rowCount = getTableRowsCount(name);
+                    rowCounts[name] = rowCount;
+                    tableList.append('<option value="' + name + '">' + name + ' (' + rowCount + ' rows)</option>');
+                }
+
+                //Select first table and show It
+                tableList.select2("val", firstTableName);
+                doDefaultSelect(firstTableName);
+
+                $("#output-box").fadeIn();
+                $(".nouploadinfo").hide();
+                $("#dropzone").delay(50).animate({height: 50}, 500);
+                $("#success-box").show();
+
+                setIsLoading(false);
+            }, 50);
+        }
+    }
+};
+
+var selectFormatter = function (item) {
+    var index = item.text.indexOf("(");
+    if (index > -1) {
+        var name = item.text.substring(0, index);
+        return name + '<span style="color:#ccc">' + item.text.substring(index - 1) + "</span>";
+    } else {
+        return item.text;
+    }
+};
+
+var windowResize = function () {
+    positionFooter();
+    var container = $("#main-container");
+    var cleft = container.offset().left + container.outerWidth();
+    $("#bottom-bar").css("left", cleft);
+};
+
+var positionFooter = function () {
+    var footer = $("#bottom-bar");
+    var pager = footer.find("#pager");
+    var container = $("#main-container");
+    var containerHeight = container.height();
+    var footerTop = ($(window).scrollTop()+$(window).height());
+
+    if (bottomBarDefaultPos === null) {
+        bottomBarDefaultPos = footer.css("position");
+    }
+
+    if (bottomBarDisplayStyle === null) {
+        bottomBarDisplayStyle = pager.css("display");
+    }
+
+    if (footerTop > containerHeight) {
+        footer.css({
+            position: "static"
+        });
+        pager.css("display", "inline-block");
+    } else {
+        footer.css({
+            position: bottomBarDefaultPos
+        });
+        pager.css("display", bottomBarDisplayStyle);
+    }
+};
+
+if (typeof FileReader === "undefined") {
+    $('#dropzone, #dropzone-dialog').hide();
+    $('#compat-error').show();
+} else {
+    $('#dropzone, #dropzone-dialog').fileReaderJS(fileReaderOpts);
+}
+
+//Initialize editor
+editor.setTheme("ace/theme/chrome");
+editor.renderer.setShowGutter(false);
+editor.renderer.setShowPrintMargin(false);
+editor.renderer.setPadding(20);
+editor.renderer.setScrollMargin(8, 8, 0, 0);
+editor.setHighlightActiveLine(false);
+editor.getSession().setUseWrapMode(true);
+editor.getSession().setMode("ace/mode/sql");
+editor.setOptions({ maxLines: 5 });
+
+//Update pager position
+$(window).resize(windowResize).scroll(positionFooter);
+windowResize();
+
+
+function getTableRowsCount(name) {
+    var sel = db.prepare("SELECT COUNT(*) FROM '" + name + "'");
+    if (sel.step()) {
+        return sel.getAsObject()["COUNT(*)"]; //weird but works!
+    } else {
+        return -1;
+    }
+}
+
+function getTableColumnTypes(tableName) {
+    var result = [];
+    var sel = db.prepare("PRAGMA table_info('" + tableName + "')");
+
+    while (sel.step()) {
+        var obj = sel.getAsObject();
+        result[obj.name] = obj.type;
+        /*if (obj.notnull === 1) {
+            result[obj.name] += " NOTNULL";
+        }*/
+    }
+
+    return result;
+}
+
+function resetTableList() {
+    var tables = $("#tables");
+    rowCounts = [];
+    tables.empty();
+    tables.append("<option></option>");
+    tables.select2({
+        placeholder: "Select a table",
+        formatSelection: selectFormatter,
+        formatResult: selectFormatter
+    });
+    tables.on("change", function (e) {
+        doDefaultSelect(e.val);
+    });
+}
+
+function setIsLoading(isLoading) {
+    var dropText = $("#drop-text");
+    var loading = $("#drop-loading");
+    if (isLoading) {
+        dropText.hide();
+        loading.show();
+    } else {
+        dropText.show();
+        loading.hide();
+    }
+}
+
+function extractFileNameWithoutExt(filename) {
+    var dotIndex = filename.lastIndexOf(".");
+    if (dotIndex > -1) {
+        return filename.substr(0, dotIndex);
+    } else {
+        return filename;
+    }
+}
+
+function dropzoneClick() {
+    $("#dropzone-dialog").click();
+}
+
+function doDefaultSelect(name) {
+    var defaultSelect = "SELECT * FROM '" + name + "' LIMIT 0,30";
+    editor.setValue(defaultSelect, -1);
+    renderQuery(defaultSelect);
+}
+
+function executeSql() {
+    var query = editor.getValue();
+    renderQuery(query);
+    $("#tables").select2("val", getTableNameFromQuery(query));
+}
+
+function getTableNameFromQuery(query) {
+    var sqlRegex = SQL_FROM_REGEX.exec(query);
+    if (sqlRegex != null) {
+        return sqlRegex[1].replace(/"|'/gi, "");
+    } else {
+        return null;
+    }
+}
+
+function parseLimitFromQuery(query, tableName) {
+    var sqlRegex = SQL_LIMIT_REGEX.exec(query);
+    if (sqlRegex != null) {
+        var result = {};
+
+        if (sqlRegex.length > 2 && typeof sqlRegex[2] !== "undefined") {
+            result.offset = sqlRegex[1];
+            result.max = sqlRegex[2];
+        } else {
+            result.offset = 0;
+            result.max = sqlRegex[1];
+        }
+
+        if (typeof tableName === "undefined") {
+            tableName = getTableNameFromQuery(query);
+        }
+
+        result.pages = Math.ceil(rowCounts[tableName] / result.max);
+        result.currentPage = Math.floor(result.offset / result.max) + 1;
+
+        return result;
+    } else {
+        return null;
+    }
+}
+
+function setPage(el, next) {
+    if ($(el).hasClass("disabled")) return;
+
+    var query = editor.getValue();
+    var limit = parseLimitFromQuery(query);
+
+    var pageToSet;
+    if (typeof next !== "undefined") {
+        pageToSet = (next ? limit.currentPage : limit.currentPage - 2 );
+    } else {
+        var page = prompt("Go to page");
+        if (!isNaN(page) && page >= 1 && page <= limit.pages) {
+            pageToSet = page - 1;
+        } else {
+            return;
+        }
+    }
+
+    var offset = (pageToSet * limit.max);
+    editor.setValue(query.replace(SQL_LIMIT_REGEX, "LIMIT " + offset + "," + limit.max), -1);
+
+    executeSql();
+}
+
+function refreshPagination(query, tableName) {
+    var limit = parseLimitFromQuery(query, tableName);
+    if (limit !== null) {
+
+        $("#pager").text(limit.currentPage + " / " + limit.pages);
+
+        if (limit.currentPage <= 1) {
+            $("#page-prev").addClass("disabled");
+        } else {
+            $("#page-prev").removeClass("disabled");
+        }
+
+        if ((limit.currentPage + 1) > limit.pages) {
+            $("#page-next").addClass("disabled");
+        } else {
+            $("#page-next").removeClass("disabled");
+        }
+
+        $("#bottom-bar").show();
+    } else {
+        $("#bottom-bar").hide();
+    }
+}
+
+function showError(msg) {
+    $("#data").hide();
+    $("#bottom-bar").hide();
+    errorBox.show();
+    errorBox.text(msg);
+}
+
+function renderQuery(query) {
+    var dataBox = $("#data");
+    var thead = dataBox.find("thead").find("tr");
+    var tbody = dataBox.find("tbody");
+
+    thead.empty();
+    tbody.empty();
+    errorBox.hide();
+    dataBox.show();
+
+    var columnTypes = [];
+    var tableName = getTableNameFromQuery(query);
+    if (tableName != null) {
+        columnTypes = getTableColumnTypes(tableName);
+    }
+
+    var sel;
+    try {
+        sel = db.prepare(query);
+    } catch (ex) {
+        showError(ex);
+        return;
+    }
+
+    var addedColums = false;
+    while (sel.step()) {
+        if (!addedColums) {
+            addedColums = true;
+            var columnNames = sel.getColumnNames();
+            for (var i = 0; i < columnNames.length; i++) {
+                var type = columnTypes[columnNames[i]];
+                thead.append('<th><span data-toggle="tooltip" data-placement="top" title="' + type + '">' + columnNames[i] + "</span></th>");
+            }
+        }
+
+        var tr = $('<tr>');
+        var s = sel.get();
+        for (var i = 0; i < s.length; i++) {
+            tr.append('<td><span title="' + s[i] + '">' + s[i] + '</span></td>');
+        }
+        tbody.append(tr);
+    }
+
+    $('[data-toggle="tooltip"]').tooltip({html: true});
+
+    refreshPagination(query, tableName);
+
+    dataBox.editableTableWidget();
+
+    setTimeout(function () {
+        positionFooter();
+    }, 100);
+}
