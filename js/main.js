@@ -1,11 +1,13 @@
 var SQL_FROM_REGEX = /FROM\s+([^\s;]+)/mi;
 var SQL_LIMIT_REGEX = /LIMIT\s+(\d+)(?:\s*,\s*(\d+))?/mi;
+var SQL_SELECT_REGEX = /SELECT\s+[^;]+\s+FROM\s+/mi;
 
 var db = null;
 var rowCounts = [];
 var editor = ace.edit("sql-editor");
 var bottomBarDefaultPos = null, bottomBarDisplayStyle = null;
 var errorBox = $("#error");
+var lastCachedQueryCount = {};
 
 var fileReaderOpts = {
     readAsDefault: "ArrayBuffer", on: {
@@ -127,9 +129,34 @@ windowResize();
 
 
 function getTableRowsCount(name) {
-    var sel = db.prepare("SELECT COUNT(*) FROM '" + name + "'");
+    var sel = db.prepare("SELECT COUNT(*) AS count FROM '" + name + "'");
     if (sel.step()) {
-        return sel.getAsObject()["COUNT(*)"]; //weird but works!
+        return sel.getAsObject().count;
+    } else {
+        return -1;
+    }
+}
+
+function getQueryRowCount(query) {
+    if (query === lastCachedQueryCount.select) {
+        return lastCachedQueryCount.count;
+    }
+
+    var queryReplaced = query.replace(SQL_SELECT_REGEX, "SELECT COUNT(*) AS count_sv FROM ");
+
+    if (queryReplaced !== query) {
+        queryReplaced = queryReplaced.replace(SQL_LIMIT_REGEX, "");
+        var sel = db.prepare(queryReplaced);
+        if (sel.step()) {
+            var count = sel.getAsObject().count_sv;
+
+            lastCachedQueryCount.select = query;
+            lastCachedQueryCount.count = count;
+
+            return count;
+        } else {
+            return -1;
+        }
     } else {
         return -1;
     }
@@ -217,19 +244,29 @@ function parseLimitFromQuery(query, tableName) {
         var result = {};
 
         if (sqlRegex.length > 2 && typeof sqlRegex[2] !== "undefined") {
-            result.offset = sqlRegex[1];
-            result.max = sqlRegex[2];
+            result.offset = parseInt(sqlRegex[1]);
+            result.max = parseInt(sqlRegex[2]);
         } else {
             result.offset = 0;
-            result.max = sqlRegex[1];
+            result.max = parseInt(sqlRegex[1]);
+        }
+
+        if (result.max == 0) {
+            result.pages = 0;
+            result.currentPage = 0;
+            return result;
         }
 
         if (typeof tableName === "undefined") {
             tableName = getTableNameFromQuery(query);
         }
 
-        result.pages = Math.ceil(rowCounts[tableName] / result.max);
+        var queryRowsCount = getQueryRowCount(query);
+        if (queryRowsCount != -1) {
+            result.pages = Math.ceil(queryRowsCount / result.max);
+        }
         result.currentPage = Math.floor(result.offset / result.max) + 1;
+        result.rowCount = queryRowsCount;
 
         return result;
     } else {
@@ -263,9 +300,12 @@ function setPage(el, next) {
 
 function refreshPagination(query, tableName) {
     var limit = parseLimitFromQuery(query, tableName);
-    if (limit !== null) {
+    if (limit !== null && limit.pages > 0) {
 
-        $("#pager").text(limit.currentPage + " / " + limit.pages);
+        var pager = $("#pager");
+        pager.attr("title", "Row count: " + limit.rowCount);
+        pager.tooltip('fixTitle');
+        pager.text(limit.currentPage + " / " + limit.pages);
 
         if (limit.currentPage <= 1) {
             $("#page-prev").addClass("disabled");
@@ -335,10 +375,9 @@ function renderQuery(query) {
         tbody.append(tr);
     }
 
-    $('[data-toggle="tooltip"]').tooltip({html: true});
-
     refreshPagination(query, tableName);
 
+    $('[data-toggle="tooltip"]').tooltip({html: true});
     dataBox.editableTableWidget();
 
     setTimeout(function () {
