@@ -1,3 +1,5 @@
+[![Android Arsenal](https://img.shields.io/badge/Android%20Arsenal-SQLite%20Viewer-brightgreen.svg?style=flat)](http://android-arsenal.com/details/1/2497)
+
 SQLite Viewer
 ============
 
