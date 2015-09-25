@@ -127,6 +127,8 @@ editor.setOptions({ maxLines: 5 });
 $(window).resize(windowResize).scroll(positionFooter);
 windowResize();
 
+$(".no-propagate").on("click", function (el) { el.stopPropagation(); });
+
 
 function getTableRowsCount(name) {
     var sel = db.prepare("SELECT COUNT(*) AS count FROM '" + name + "'");
