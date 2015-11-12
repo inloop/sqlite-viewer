@@ -5,6 +5,8 @@ SQLite Viewer
 
 *View SQLite file online. Uses [sql.js](https://github.com/kripken/sql.js/) for parsing sqlite files.*
 
+![](/img/preview.png?raw=true "Example sqlite")
+
 ###License
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
