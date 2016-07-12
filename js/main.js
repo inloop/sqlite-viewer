@@ -9,54 +9,20 @@ var bottomBarDefaultPos = null, bottomBarDisplayStyle = null;
 var errorBox = $("#error");
 var lastCachedQueryCount = {};
 
+$.urlParam = function(name){
+    var results = new RegExp('[\?&]' + name + '=([^&#]*)').exec(window.location.href);
+    if (results==null){
+        return null;
+    }
+    else{
+        return results[1] || 0;
+    }
+};
+
 var fileReaderOpts = {
     readAsDefault: "ArrayBuffer", on: {
         load: function (e, file) {
-            extractFileNameWithoutExt(file.name);
-            setIsLoading(true);
-
-            resetTableList();
-
-            setTimeout(function () {
-                var tables;
-                try {
-                    db = new SQL.Database(new Uint8Array(e.target.result));
-
-                    //Get all table names from master table
-                    tables = db.prepare("SELECT * FROM sqlite_master WHERE type='table' ORDER BY name");
-                } catch (ex) {
-                    setIsLoading(false);
-                    alert(ex);
-                    return;
-                }
-
-                var firstTableName = null;
-                var tableList = $("#tables");
-
-                while (tables.step()) {
-                    var rowObj = tables.getAsObject();
-                    var name = rowObj.name;
-
-                    if (firstTableName === null) {
-                        firstTableName = name;
-                    }
-                    var rowCount = getTableRowsCount(name);
-                    rowCounts[name] = rowCount;
-                    tableList.append('<option value="' + name + '">' + name + ' (' + rowCount + ' rows)</option>');
-                }
-
-                //Select first table and show It
-                tableList.select2("val", firstTableName);
-                doDefaultSelect(firstTableName);
-
-                $("#output-box").fadeIn();
-                $(".nouploadinfo").hide();
-                $("#sample-db-link").hide();
-                $("#dropzone").delay(50).animate({height: 50}, 500);
-                $("#success-box").show();
-
-                setIsLoading(false);
-            }, 50);
+            loadDB(e.target.result);
         }
     }
 };
@@ -130,6 +96,69 @@ windowResize();
 
 $(".no-propagate").on("click", function (el) { el.stopPropagation(); });
 
+//Check url to load remote DB
+var loadUrlDB = $.urlParam('url');
+if (loadUrlDB != null) {
+    setIsLoading(true);
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', loadUrlDB, true);
+    xhr.responseType = 'arraybuffer';
+
+    xhr.onload = function(e) {
+        loadDB(this.response);
+    };
+    xhr.onerror = function (e) {
+        setIsLoading(false);
+    };
+    xhr.send();
+}
+
+function loadDB(arrayBuffer) {
+    setIsLoading(true);
+
+    resetTableList();
+
+    setTimeout(function () {
+        var tables;
+        try {
+            db = new SQL.Database(new Uint8Array(arrayBuffer));
+
+            //Get all table names from master table
+            tables = db.prepare("SELECT * FROM sqlite_master WHERE type='table' ORDER BY name");
+        } catch (ex) {
+            setIsLoading(false);
+            alert(ex);
+            return;
+        }
+
+        var firstTableName = null;
+        var tableList = $("#tables");
+
+        while (tables.step()) {
+            var rowObj = tables.getAsObject();
+            var name = rowObj.name;
+
+            if (firstTableName === null) {
+                firstTableName = name;
+            }
+            var rowCount = getTableRowsCount(name);
+            rowCounts[name] = rowCount;
+            tableList.append('<option value="' + name + '">' + name + ' (' + rowCount + ' rows)</option>');
+        }
+
+        //Select first table and show It
+        tableList.select2("val", firstTableName);
+        doDefaultSelect(firstTableName);
+
+        $("#output-box").fadeIn();
+        $(".nouploadinfo").hide();
+        $("#sample-db-link").hide();
+        $("#dropzone").delay(50).animate({height: 50}, 500);
+        $("#success-box").show();
+
+        setIsLoading(false);
+    }, 50);
+}
 
 function getTableRowsCount(name) {
     var sel = db.prepare("SELECT COUNT(*) AS count FROM '" + name + "'");
