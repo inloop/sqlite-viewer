@@ -26,9 +26,18 @@
 
 <div id="main-container" class="container">
     <div id="header">
-        <img src="img/logo.svg" class="img-responsive pull-left" style="margin-right: 16px;"/>
-        <h3>SQLite Viewer</h3>
-        <p>view sqlite file online</p>
+        <div class="row">
+            <div class="col-xs-6">
+                <img src="img/logo.svg" class="img-responsive pull-left" style="margin-right: 16px;"/>
+                <h3>SQLite Viewer</h3>
+                <p>view sqlite file online</p>
+            </div>
+            <div class="col-xs-6">
+                <a href="#" id="resizer" class="pull-right">
+                    <i class="glyphicon glyphicon-resize-full"></i>
+                </a>
+            </div>
+        </div>
     </div>
 
     <div id="compat-error" class="alert alert-danger" style="display: none">

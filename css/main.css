@@ -53,6 +53,18 @@ footer small a {
     margin: 0;
 }
 
+#resizer {
+    font-size: 26px;
+}
+
+#resizer i {
+    padding-top: 15px;
+}
+
+#resizer i.glyphicon-resize-small {
+    margin-right: 120px;
+}
+
 #dropzone {
     height: 450px;
     width: 100%;

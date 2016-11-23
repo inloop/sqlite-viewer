@@ -72,6 +72,15 @@ var positionFooter = function () {
     }
 };
 
+var toggleFullScreen = function () {
+    var container = $("#main-container");
+    var resizerIcon = $("#resizer i");
+
+    container.toggleClass('container container-fluid');
+    resizerIcon.toggleClass('glyphicon-resize-full glyphicon-resize-small');
+}
+$('#resizer').click(toggleFullScreen);
+
 if (typeof FileReader === "undefined") {
     $('#dropzone, #dropzone-dialog').hide();
     $('#compat-error').show();
