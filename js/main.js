@@ -110,7 +110,7 @@ var loadUrlDB = $.urlParam('url');
 if (loadUrlDB != null) {
     setIsLoading(true);
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', loadUrlDB, true);
+    xhr.open('GET', decodeURIComponent(loadUrlDB), true);
     xhr.responseType = 'arraybuffer';
 
     xhr.onload = function(e) {
