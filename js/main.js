@@ -373,6 +373,10 @@ function showError(msg) {
     errorBox.text(msg);
 }
 
+function htmlEncode(value){
+  return $('<div/>').text(value).html();
+}
+
 function renderQuery(query) {
     var dataBox = $("#data");
     var thead = dataBox.find("thead").find("tr");
@@ -411,7 +415,7 @@ function renderQuery(query) {
         var tr = $('<tr>');
         var s = sel.get();
         for (var i = 0; i < s.length; i++) {
-            tr.append('<td><span title="' + s[i] + '">' + s[i] + '</span></td>');
+            tr.append('<td><span title="' + htmlEncode(s[i]) + '">' + htmlEncode(s[i]) + '</span></td>');
         }
         tbody.append(tr);
     }
