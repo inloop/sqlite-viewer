@@ -143,5 +143,13 @@
 
 </script>
 
+<script>
+    document.onkeyup = function(e) {
+        if (e.ctrlKey && e.which == 13) {
+            executeSql(this)
+        }
+    };
+</script>
+
 </body>
 </html>
