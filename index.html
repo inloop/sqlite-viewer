@@ -70,7 +70,7 @@
             </div>
 
             <div class="col-md-11">
-                <div id="sql-editor" class="panel panel-default form-control"></div>
+                <div id="sql-editor" class="panel panel-default form-control" onkeydown="onKeyDown(event)"></div>
 
             </div>
 
@@ -144,11 +144,11 @@
 </script>
 
 <script>
-    document.onkeyup = function(e) {
-        if (e.ctrlKey && e.which == 13) {
-            executeSql(this)
+    function onKeyDown(e) {
+        if ((e.ctrlKey || e.metaKey) && e.which == 13) {
+            executeSql()
         }
-    };
+    }
 </script>
 
 </body>
