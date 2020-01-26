@@ -98,6 +98,7 @@ editor.setHighlightActiveLine(false);
 editor.getSession().setUseWrapMode(true);
 editor.getSession().setMode("ace/mode/sql");
 editor.setOptions({ maxLines: 5 });
+editor.setFontSize(16);
 
 //Update pager position
 $(window).resize(windowResize).scroll(positionFooter);
