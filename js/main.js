@@ -134,7 +134,7 @@ function loadDB(arrayBuffer) {
             db = new SQL.Database(new Uint8Array(arrayBuffer));
 
             //Get all table names from master table
-            tables = db.prepare("SELECT * FROM sqlite_master WHERE type='table' ORDER BY name");
+            tables = db.prepare("SELECT * FROM sqlite_master WHERE type='table' OR type='view' ORDER BY name");
         } catch (ex) {
             setIsLoading(false);
             alert(ex);
