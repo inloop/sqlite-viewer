@@ -128,7 +128,7 @@ function loadDB(arrayBuffer) {
 
     resetTableList();
 
-    setTimeout(function () {
+    initSqlJs().then(function(SQL){
         var tables;
         try {
             db = new SQL.Database(new Uint8Array(arrayBuffer));
@@ -167,7 +167,7 @@ function loadDB(arrayBuffer) {
         $("#success-box").show();
 
         setIsLoading(false);
-    }, 50);
+    });
 }
 
 function getTableRowsCount(name) {
