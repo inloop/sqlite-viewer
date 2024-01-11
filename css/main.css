@@ -2,24 +2,6 @@ body {
     background: #f5f5f5;
 }
 
-footer {
-    margin-top: 8px;
-    margin-bottom: 8px;
-    color: darkgray;
-    text-align: center;
-}
-
-footer small a {
-    color: #7AA7CF;
-}
-
-#main-container {
-    position: relative;
-    background: #ffffff;
-    box-shadow: 0 1px 16px silver;
-    z-index: 2;
-}
-
 .node-info {
     font-style: italic;
     display: none;
@@ -42,52 +24,15 @@ footer small a {
 #header {
     background: #A0CFFF;
     color: #3474A8;
-    padding: 16px;
-    margin-left: -15px;
-    margin-right: -15px;
-    margin-bottom: 15px;
-
-}
-
-#header h3 {
-    margin: 0;
-}
-
-#resizer {
-    font-size: 26px;
-}
-
-#resizer i {
-    padding-top: 15px;
-}
-
-#resizer i.glyphicon-resize-small {
-    margin-right: 120px;
 }
 
 #dropzone {
     height: 450px;
-    width: 100%;
-    font-size: 1.2em;
     cursor: pointer;
-    text-align: center;
-    display: table;
-    table-layout: fixed;
-}
-
-#dropzone .panel-body {
-    display: table-cell;
-    vertical-align: middle;
 }
 
 #output-box {
     display: none;
-    margin-bottom: 20px;
-}
-
-#button-box {
-    position: absolute;
-    right: 40px;
 }
 
 .ace_hidden-cursors {
@@ -111,68 +56,4 @@ footer small a {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-#bottom-bar a:focus, a:hover {
-    text-decoration: none;
-}
-
-#bottom-bar .inline {
-    background: #fff;
-    display: inline-block;
-    padding: 15px;
-    margin: -15px
-}
-
-#bottom-bar {
-    z-index: 1;
-    bottom: 0;
-    padding: 15px;
-    position: static;
-    display: none;
-    margin-left: -8px;
-}
-
-@media (min-width: 1300px) {
-    #bottom-bar {
-        position: fixed;
-    }
-
-    #pager {
-        display: block;
-    }
-}
-
-@media (min-width: 1450px) {
-    #pager {
-        display: inline-block;
-    }
-}
-
-.ribbon {
-    z-index: 3;
-}
-/* Animated loading icon */
-
-.glyphicon-refresh-animate {
-    -animation: spin .7s infinite linear;
-    -webkit-animation: spin2 .7s infinite linear;
-}
-
-@-webkit-keyframes spin2 {
-    from {
-        -webkit-transform: rotate(0deg);
-    }
-    to {
-        -webkit-transform: rotate(360deg);
-    }
-}
-
-@keyframes spin {
-    from {
-        transform: scale(1) rotate(0deg);
-    }
-    to {
-        transform: scale(1) rotate(360deg);
-    }
 }

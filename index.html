@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="stylesheet" type="text/css" href="css/main.css"/>
     <meta charset="utf-8">
     <meta name="description" content="sqlite file viewer">
     <meta name="keywords" content="sqlite,viewer,db,database,online">
@@ -9,118 +8,136 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SQLite Viewer</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
-    <link href="css/select2.css" rel="stylesheet">
-    <link href="css/select2-bootstrap.css" rel="stylesheet">
+    <link href="css/select2.min.css" rel="stylesheet">
+    <link href="css/select2-bootstrap-5-theme.min.css" rel="stylesheet">
     <link href="css/main.css" rel="stylesheet">
     <link rel="image_src" href="img/icon.png" />
     <link rel="icon" type="image/png" href="img/icon.png"/>
+    <meta property="og:url" content="https://inloop.github.io/sqlite-viewer/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="SQLite Viewer">
+    <meta property="og:description" content="sqlite file viewer">
+    <meta property="og:image" content="https://inloop.github.io/sqlite-viewer/img/icon.png">
 </head>
 <body>
 
 <img src="img/icon.png" style="display: none;"/>
 
-<div id="main-container" class="container">
-    <div id="header">
-        <div class="row">
-            <div class="col-xs-6">
-                <img src="img/logo.svg" class="img-responsive pull-left" style="margin-right: 16px;"/>
-                <h3>SQLite Viewer</h3>
-                <p>view sqlite file online</p>
-            </div>
-            <div class="col-xs-6">
-                <a href="#" id="resizer" class="pull-right">
-                    <i class="glyphicon glyphicon-resize-full"></i>
-                </a>
-            </div>
+<div id="main-container" class="container shadow bg-white">
+    <header id="header" class="row align-items-center p-4">
+        <img src="img/logo.svg" width="54" height="54" class="col-auto p-0" alt="Database logo"/>
+
+        <div class="col">
+            <h4 class="mb-0">SQLite Viewer</h4>
+            <p class="mb-0">view sqlite file online</p>
         </div>
+
+        <a href="#" id="resizer" class="col-auto text-decoration-none" style="color: #3474A8">
+            <svg id="resizer-expand" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-arrows-angle-expand" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" d="M5.828 10.172a.5.5 0 0 0-.707 0l-4.096 4.096V11.5a.5.5 0 0 0-1 0v3.975a.5.5 0 0 0 .5.5H4.5a.5.5 0 0 0 0-1H1.732l4.096-4.096a.5.5 0 0 0 0-.707m4.344-4.344a.5.5 0 0 0 .707 0l4.096-4.096V4.5a.5.5 0 1 0 1 0V.525a.5.5 0 0 0-.5-.5H11.5a.5.5 0 0 0 0 1h2.768l-4.096 4.096a.5.5 0 0 0 0 .707"/>
+            </svg>
+            <svg id="resizer-collapse" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-arrows-angle-contract collapse" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" d="M.172 15.828a.5.5 0 0 0 .707 0l4.096-4.096V14.5a.5.5 0 1 0 1 0v-3.975a.5.5 0 0 0-.5-.5H1.5a.5.5 0 0 0 0 1h2.768L.172 15.121a.5.5 0 0 0 0 .707M15.828.172a.5.5 0 0 0-.707 0l-4.096 4.096V1.5a.5.5 0 1 0-1 0v3.975a.5.5 0 0 0 .5.5H14.5a.5.5 0 0 0 0-1h-2.768L15.828.879a.5.5 0 0 0 0-.707"/>
+            </svg>
+        </a>
+    </header>
+
+    <div id="compat-error" class="alert alert-danger row rounded-0 d-none" role="alert">
+        Sorry but your browser does not support some of new HTML5 features! Try using latest version of Google Chrome or Firefox.
     </div>
 
-    <div id="compat-error" class="alert alert-danger" style="display: none">
-        <div class="clearfix">
-            <img src="img/seriously.png" class="img-responsive pull-left"/>
-            <p>Sorry but your browser does not support some of new HTML5 features! Try using latest version of Google Chrome or
-                Firefox.</p>
-        </div>
-    </div>
+    <div class="row text-center p-3 align-items-stretch" id="dropzone" onclick="dropzoneClick(this)">
+        <div class="d-flex border border-info-subtle rounded-1 align-items-center justify-content-center">
+            <div id="drop-text">
+                <b>Drop file here</b> to load content or click on this box to open file dialog.<br/>
 
-    <div class="panel panel-info" id="dropzone" onclick="dropzoneClick(this)">
-        <div id="drop-text" class="panel-body">
-            <b>Drop file here</b> to load content or click on this box to open file dialog.<br/>
+                <div class="nouploadinfo small mb-3">No file will be uploaded - uses only JavaScript HTML5 FileReader.
+                </div>
 
-            <div class="nouploadinfo small">No file will be uploaded - uses only JavaScript HTML5 FileReader.<br/><br/>
+                <a id="sample-db-link" class="no-propagate small text-decoration-none"
+                   href="examples/Chinook_Sqlite.sqlite">&hellip; or download &amp; try this sample file</a>
             </div>
-            
-            <a id="sample-db-link" class="no-propagate small" href="examples/Chinook_Sqlite.sqlite">&hellip; or download &amp; try this sample file</a>
-        </div>
-        <div id="drop-loading" class="panel-body" style="display: none">
-            <span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> <b>Processing file ...</b>
+            <div id="drop-loading" class="d-flex align-items-center d-none">
+                <div class="spinner-border me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <b>Processing file...</b>
+            </div>
         </div>
     </div>
 
     <div id="output-box" class="container-fluid">
+        <div class="input-group">
+            <select id="tables" class="form-select" title="Table"></select>
 
-        <div class="row">
-            <div class="col-md-12">
-                <select id="tables" class="form-control select2" title="Table"></select><br />
+            <div class="dropdown ms-2">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenu1"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    Export
+                </button>
+                <ul class="dropdown-menu" aria-labelledby="dropdownMenu1">
+                    <li><a class="dropdown-item" href="#" onclick="exportAllToCsv()">All tables to CSV</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportSelectedTableToCsv()">Selected table to CSV</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportQueryTableToCsv()">Query table to CSV</a></li>
+                </ul>
             </div>
+        </div>
 
-            <div class="col-md-11">
-                <div id="sql-editor" class="panel panel-default form-control form-control-lg" onkeydown="onKeyDown(event)"></div>
-            </div>
+        <div class="d-flex mt-3 mb-3">
+            <div id="sql-editor" class="form-control form-control-lg col me-2"></div>
+            <button class="btn btn-primary col-auto" id="sql-run" type="submit" onclick="executeSql(this)">Execute</button>
+        </div>
 
-            <div class="col-sm-1">
-                <button class="btn btn-sm btn-primary" id="sql-run" type="submit" onclick="executeSql(this)">Execute</button>
-            </div>
+        <div class="alert alert-danger" id="error" style="display: none"></div>
+        <div class="alert alert-info" id="info" style="display: none"></div>
 
-            <div class="col-md-12">
-
-                <div style="overflow-x: auto">
-                    <table id="data" class="table table-condensed table-bordered table-hover table-striped">
-                        <thead>
-                        <tr></tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-
-                <div class="alert alert-danger box" id="error" style="display: none"></div>
-
+        <div class="row pb-4">
+            <div class="overflow-x-auto">
+                <table id="data" class="table table-sm table-bordered table-hover table-striped">
+                    <thead>
+                    <tr></tr>
+                    </thead>
+                    <tbody class="table-group-divider"></tbody>
+                </table>
             </div>
 
         </div>
-
-    </div>
-
-    <div class="alert alert-danger box" style="display: none"></div>
-    <div class="alert alert-warning box" style="display: none"></div>
-    <div class="alert alert-info box" style="display: none"></div>
-</div>
-
-<div id="bottom-bar" class="text-center">
-    <div class="inline">
-        <button class="btn btn-default btn-sm " id="page-prev" type="submit" onclick="setPage(this, false)"><span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span></button>
-        <a href="javascript:void(0)" data-toggle="tooltip" data-placement="top" onclick="setPage(this)" id="pager"></a>
-        <button class="btn btn-default btn-sm " id="page-next" type="submit" onclick="setPage(this, true)"><span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span></button>
     </div>
 </div>
 
-<div class="container">
-    <footer>
-        <a href="https://yuraj11.github.io">&copy; 2024 Juraj Novák</a><br>
-        <small>| <a href="https://github.com/inloop/sqlite-viewer">Fork me on GitHub</a> |</small>
-    </footer>
+<div id="bottom-bar" class="d-flex position-sticky justify-content-center bottom-0 pb-4 d-none pe-none">
+    <div class="row bg-white border border-dark shadow p-3 rounded-2 pe-auto">
+        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-prev" type="submit" onclick="setPage(this, false)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
+                <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
+            </svg>
+        </button>
+        <a href="javascript:void(0)" data-bs-toggle="tooltip" class="text-decoration-none col-auto" onclick="setPage(this)" id="pager"></a>
+        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-next" type="submit" onclick="setPage(this, true)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-right-fill" viewBox="0 0 16 16">
+                <path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/>
+            </svg>
+        </button>
+    </div>
 </div>
+
+<footer class="col text-center text-secondary py-2 my-1 small" id="footer">
+    <a href="https://yuraj11.github.io" class="text-decoration-none">&copy; 2024 Juraj Novák</a><br>
+    <small>| <a href="https://github.com/inloop/sqlite-viewer" class="text-decoration-none link-opacity-75">Fork me on GitHub</a> |</small>
+</footer>
 
 <input type="file" id="dropzone-dialog" style="opacity: 0;display:none">
 
 <script src="js/jquery-1.11.3.min.js"></script>
 <script src="js/filereader.js"></script>
 <script src="js/sql.js?v=190"></script>
-<script src="js/select2.min.js"></script>
-<script src="js/ace/ace.js"></script>
-<script src="js/bootstrap.min.js"></script>
+<script src="js/select2.min.js?v=4013"></script>
+<script src="js/ace/ace.js?v=1323"></script>
+<script src="js/bootstrap.bundle.min.js?v=532"></script>
 <script src="js/mindmup-editabletable.js"></script>
-<script src="js/main.js?v=11"></script>
+<script src="js/jszip.min.js"></script>
+<script src="js/FileSaver.min.js"></script>
+<script src="js/main.js?v=12"></script>
 
 <script>
     (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
@@ -131,14 +148,6 @@
     ga('create', 'UA-67535271-1', 'auto');
     ga('send', 'pageview');
 
-</script>
-
-<script>
-    function onKeyDown(e) {
-        if ((e.ctrlKey || e.metaKey) && e.which == 13) {
-            executeSql()
-        }
-    }
 </script>
 
 </body>
