@@ -45,7 +45,7 @@ function initialize() {
         onKeyDown(e);
     })
 
-    if (typeof FileReader === "undefined") {
+        if (typeof FileReader === "undefined" || typeof WebAssembly === "undefined") {
         $('#dropzone, #dropzone-dialog').hide();
         $('#compat-error').toggleClass("d-none", false);
     } else {
@@ -100,7 +100,7 @@ function loadDB(arrayBuffer) {
 
     resetTableList();
 
-    initSqlJs().then(function(SQL){
+    initSqlJs({ locateFile: file => `/js/${file}` }).then(function(SQL){
         let tables;
         try {
             db = new SQL.Database(new Uint8Array(arrayBuffer));
@@ -378,17 +378,15 @@ function renderQuery(query) {
         return;
     }
 
-    let addedColumns = false;
-    while (sel.step()) {
-        if (!addedColumns) {
-            addedColumns = true;
-            const columnNames = sel.getColumnNames();
-            for (let i = 0; i < columnNames.length; i++) {
-                const type = columnTypes[columnNames[i]];
-                thead.append('<th><span data-bs-toggle="tooltip" title="' + type + '">' + columnNames[i] + "</span></th>");
-            }
-        }
+    let isEmptyTable = true;
+    const columnNames = sel.getColumnNames();
+    for (let i = 0; i < columnNames.length; i++) {
+        const type = columnTypes[columnNames[i]];
+        thead.append('<th><span data-bs-toggle="tooltip" title="' + type + '">' + columnNames[i] + "</span></th>");
+    }
 
+    while (sel.step()) {
+        isEmptyTable = false;
         const tr = $('<tr>');
         const s = sel.get();
         for (let i = 0; i < s.length; i++) {
@@ -397,7 +395,7 @@ function renderQuery(query) {
         tbody.append(tr);
     }
 
-    if (!addedColumns) {
+    if (isEmptyTable) {
         infoBox.text("No data for given select.")
         infoBox.show();
     }
