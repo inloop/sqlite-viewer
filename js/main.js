@@ -100,7 +100,7 @@ function loadDB(arrayBuffer) {
 
     resetTableList();
 
-    initSqlJs({ locateFile: file => `/js/${file}` }).then(function(SQL){
+    initSqlJs({ locateFile: file => `${file}` }).then(function(SQL){
         let tables;
         try {
             db = new SQL.Database(new Uint8Array(arrayBuffer));
