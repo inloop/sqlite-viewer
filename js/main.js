@@ -100,7 +100,7 @@ function loadDB(arrayBuffer) {
 
     resetTableList();
 
-    initSqlJs({ locateFile: file => `${file}` }).then(function(SQL){
+    initSqlJs({ locateFile: file => `https://inloop.github.io/sqlite-viewer/js/sql-wasm.wasm` }).then(function(SQL){
         let tables;
         try {
             db = new SQL.Database(new Uint8Array(arrayBuffer));
