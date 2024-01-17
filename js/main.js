@@ -1,10 +1,11 @@
-const SQL_FROM_REGEX = /FROM\s+([^\s;]+)/mi;
+const SQL_WASM_PATH = "https://inloop.github.io/sqlite-viewer/js/sql-wasm.wasm";
+
+const SQL_FROM_REGEX = /FROM\s+((?=['"])((["'])(?<g1>[^'"]+))|(?<g2>\w+))/mi;
 const SQL_LIMIT_REGEX = /LIMIT\s+(\d+)(?:\s*,\s*(\d+))?/mi;
 const SQL_SELECT_REGEX = /SELECT\s+[^;]+\s+FROM\s+/mi;
 
 let db = null;
-let rowCounts = [];
-let lastCachedQueryCount = {};
+let lastCachedQueryCount = { select: "", count: 0 };
 let loadedTableNames = [];
 const editor = ace.edit("sql-editor");
 const errorBox = $("#error");
@@ -14,7 +15,7 @@ const selectFormatter = function (item) {
     const index = item.text.indexOf("(");
     if (index > -1) {
         const name = item.text.substring(0, index);
-        return $("<span>" + name + '<span style="color:#ccc">' + item.text.substring(index - 1) + "</span></span>");
+        return $(`<span>${name}<span style="color:#ccc">${item.text.substring(index - 1)}</span></span>`);
     } else {
         return item.text;
     }
@@ -36,20 +37,18 @@ function initialize() {
         const resizerExpandIcon = $("#resizer-expand");
         const resizerCollapseIcon = $("#resizer-collapse");
 
-        container.toggleClass('container container-fluid');
+        container.toggleClass("container container-fluid");
         resizerExpandIcon.toggle();
         resizerCollapseIcon.toggle();
-    }
-    $('#resizer').click(toggleFullScreen);
-    $("#sql-editor").keydown(function (e) {
-        onKeyDown(e);
-    })
+    };
+    $("#resizer").click(toggleFullScreen);
+    $("#sql-editor").keydown(onKeyDown);
 
-        if (typeof FileReader === "undefined" || typeof WebAssembly === "undefined") {
-        $('#dropzone, #dropzone-dialog').hide();
-        $('#compat-error').toggleClass("d-none", false);
+    if (typeof FileReader === "undefined" || typeof WebAssembly === "undefined") {
+        $("#dropzone, #dropzone-dialog").hide();
+        $("#compat-error").toggleClass("d-none", false);
     } else {
-        $('#dropzone, #dropzone-dialog').fileReaderJS(fileReaderOpts);
+        $("#dropzone, #dropzone-dialog").fileReaderJS(fileReaderOpts);
     }
 
     //Initialize editor
@@ -69,22 +68,20 @@ function initialize() {
     });
 
     //Check url to load remote DB
-    $.urlParam = function(name){
-        let results = new RegExp('[\?&]' + name + '=([^&#]*)').exec(window.location.href);
-        if (results==null){
+    $.urlParam = function (name) {
+        let results = new RegExp( `[\?&]${name}=([^&#]*)`).exec(window.location.href);
+        if (results == null) {
             return null;
-        }
-        else{
+        } else {
             return results[1] || 0;
         }
     };
-    const loadUrlDB = $.urlParam('url');
+    const loadUrlDB = $.urlParam("url");
     if (loadUrlDB != null) {
         setIsLoading(true);
         const xhr = new XMLHttpRequest();
-        xhr.open('GET', decodeURIComponent(loadUrlDB), true);
-        xhr.responseType = 'arraybuffer';
-
+        xhr.open("GET", decodeURIComponent(loadUrlDB), true);
+        xhr.responseType = "arraybuffer";
         xhr.onload = function (e) {
             loadDB(this.response);
         };
@@ -100,7 +97,7 @@ function loadDB(arrayBuffer) {
 
     resetTableList();
 
-    initSqlJs({ locateFile: file => `https://inloop.github.io/sqlite-viewer/js/sql-wasm.wasm` }).then(function(SQL){
+    initSqlJs({locateFile: file => SQL_WASM_PATH}).then(function (SQL) {
         let tables;
         try {
             db = new SQL.Database(new Uint8Array(arrayBuffer));
@@ -109,7 +106,7 @@ function loadDB(arrayBuffer) {
             tables = db.prepare("SELECT * FROM sqlite_master WHERE type='table' OR type='view' ORDER BY name");
         } catch (ex) {
             setIsLoading(false);
-            alert(ex);
+            window.alert(ex);
             return;
         }
 
@@ -118,15 +115,16 @@ function loadDB(arrayBuffer) {
 
         while (tables.step()) {
             const rowObj = tables.getAsObject();
-            const name = rowObj.name;
+            const name = rowObj["name"];
+            const type = rowObj["type"];
 
             if (firstTableName === null) {
                 firstTableName = name;
             }
             const rowCount = getTableRowsCount(name);
-            rowCounts[name] = rowCount;
             loadedTableNames.push(name);
-            tableList.append('<option value="' + name + '">' + name + ' (' + rowCount + ' rows)</option>');
+            const tableType = type !== "table" ? `, ${type}` : "";
+            tableList.append(`<option value="${name}">${name} (${rowCount} rows${tableType})</option>`);
         }
 
         //Select first table and show It
@@ -144,9 +142,9 @@ function loadDB(arrayBuffer) {
 }
 
 function getTableRowsCount(name) {
-    const sel = db.prepare("SELECT COUNT(*) AS count FROM '" + name + "'");
+    const sel = db.prepare(`SELECT COUNT(*) AS count FROM '${name}'`);
     if (sel.step()) {
-        return sel.getAsObject().count;
+        return sel.getAsObject()["count"];
     } else {
         return -1;
     }
@@ -157,13 +155,13 @@ function getQueryRowCount(query) {
         return lastCachedQueryCount.count;
     }
 
-    let queryReplaced = query.replace(SQL_SELECT_REGEX, "SELECT COUNT(*) AS count_sv FROM ");
+    let queryReplaced = query.replace(SQL_SELECT_REGEX, "SELECT COUNT(*) AS count FROM ");
 
     if (queryReplaced !== query) {
         queryReplaced = queryReplaced.replace(SQL_LIMIT_REGEX, "");
         const sel = db.prepare(queryReplaced);
         if (sel.step()) {
-            const count = sel.getAsObject().count_sv;
+            const count = sel.getAsObject()["count"];
 
             lastCachedQueryCount.select = query;
             lastCachedQueryCount.count = count;
@@ -179,14 +177,17 @@ function getQueryRowCount(query) {
 
 function getTableColumnTypes(tableName) {
     let result = [];
-    const sel = db.prepare("PRAGMA table_info('" + tableName + "')");
+    const sel = db.prepare(`PRAGMA table_info('${tableName}')`);
 
     while (sel.step()) {
         const obj = sel.getAsObject();
-        result[obj.name] = obj.type;
-        /*if (obj.notnull === 1) {
-            result[obj.name] += " NOTNULL";
-        }*/
+        result[obj.name] = obj["type"];
+        if (obj["notnull"] === 1) {
+            result[obj.name] += " NOT NULL";
+        }
+        if (obj["pk"] === 1) {
+            result[obj.name] += " PRIMARY KEY";
+        }
     }
 
     return result;
@@ -194,7 +195,6 @@ function getTableColumnTypes(tableName) {
 
 function resetTableList() {
     const tables = $("#tables");
-    rowCounts = [];
     loadedTableNames = [];
     tables.empty();
     tables.append("<option></option>");
@@ -226,7 +226,7 @@ function dropzoneClick() {
 }
 
 function doDefaultSelect(name) {
-    const defaultSelect = "SELECT * FROM '" + name + "' LIMIT 0,30";
+    const defaultSelect = `SELECT * FROM '${name}' LIMIT 0,30`;
     editor.setValue(defaultSelect, -1);
     renderQuery(defaultSelect);
 }
@@ -240,16 +240,16 @@ function executeSql() {
 function getTableNameFromQuery(query) {
     const sqlRegex = SQL_FROM_REGEX.exec(query);
     if (sqlRegex != null) {
-        return sqlRegex[1].replace(/"|'/gi, "");
+        return sqlRegex.groups.g1 ?? sqlRegex.groups.g2;
     } else {
         return null;
     }
 }
 
-function parseLimitFromQuery(query, tableName) {
+function parseLimitFromQuery(query) {
     const sqlRegex = SQL_LIMIT_REGEX.exec(query);
     if (sqlRegex != null) {
-        let result = {};
+        let result = { max: 0, offset: 0 };
 
         if (sqlRegex.length > 2 && typeof sqlRegex[2] !== "undefined") {
             result.offset = parseInt(sqlRegex[1]);
@@ -263,10 +263,6 @@ function parseLimitFromQuery(query, tableName) {
             result.pages = 0;
             result.currentPage = 0;
             return result;
-        }
-
-        if (typeof tableName === "undefined") {
-            tableName = getTableNameFromQuery(query);
         }
 
         const queryRowsCount = getQueryRowCount(query);
@@ -290,9 +286,9 @@ function setPage(el, next) {
 
     let pageToSet;
     if (typeof next !== "undefined") {
-        pageToSet = (next ? limit.currentPage : limit.currentPage - 2 );
+        pageToSet = (next ? limit.currentPage : limit.currentPage - 2);
     } else {
-        const page = prompt("Go to page");
+        const page = window.prompt("Go to page");
         if (!isNaN(page) && page >= 1 && page <= limit.pages) {
             pageToSet = page - 1;
         } else {
@@ -301,30 +297,32 @@ function setPage(el, next) {
     }
 
     const offset = (pageToSet * limit.max);
-    editor.setValue(query.replace(SQL_LIMIT_REGEX, "LIMIT " + offset + "," + limit.max), -1);
+    editor.setValue(query.replace(SQL_LIMIT_REGEX, `LIMIT ${offset},${limit.max}`), -1);
 
     executeSql();
 }
 
-function refreshPagination(query, tableName) {
-    const limit = parseLimitFromQuery(query, tableName);
+function refreshPagination(query) {
+    const limit = parseLimitFromQuery(query);
     if (limit !== null && limit.pages > 0) {
-
         const pager = $("#pager");
-        pager.attr("title", "Row count: " + limit.rowCount);
+        const pagePrev = $("#page-prev");
+        const pageNext = $("#page-next");
+
+        pager.attr("title", `Row count: ${limit.rowCount}`);
         bootstrap.Tooltip.getOrCreateInstance("#pager").hide();
         pager.text(limit.currentPage + " / " + limit.pages);
 
         if (limit.currentPage <= 1) {
-            $("#page-prev").addClass("disabled");
+            pagePrev.addClass("disabled");
         } else {
-            $("#page-prev").removeClass("disabled");
+            pagePrev.removeClass("disabled");
         }
 
         if ((limit.currentPage + 1) > limit.pages) {
-            $("#page-next").addClass("disabled");
+            pageNext.addClass("disabled");
         } else {
-            $("#page-next").removeClass("disabled");
+            pageNext.removeClass("disabled");
         }
 
         setPagerVisible(true);
@@ -349,8 +347,8 @@ function setPagerVisible(visible) {
     }
 }
 
-function htmlEncode(value){
-  return $('<div/>').text(value).html();
+function htmlEncode(value) {
+    return $("<div/>").text(value).html();
 }
 
 function renderQuery(query) {
@@ -382,7 +380,7 @@ function renderQuery(query) {
     const columnNames = sel.getColumnNames();
     for (let i = 0; i < columnNames.length; i++) {
         const type = columnTypes[columnNames[i]];
-        thead.append('<th><span data-bs-toggle="tooltip" title="' + type + '">' + columnNames[i] + "</span></th>");
+        thead.append(`<th><span data-bs-toggle="tooltip" title="${type}">${columnNames[i]}</span></th>`);
     }
 
     while (sel.step()) {
@@ -390,17 +388,18 @@ function renderQuery(query) {
         const tr = $('<tr>');
         const s = sel.get();
         for (let i = 0; i < s.length; i++) {
-            tr.append('<td><span title="' + htmlEncode(s[i]) + '">' + htmlEncode(s[i]) + '</span></td>');
+            let value = htmlEncode(s[i]);
+            tr.append(`<td><span title="${value}">${value}</span></td>`);
         }
         tbody.append(tr);
     }
 
     if (isEmptyTable) {
-        infoBox.text("No data for given select.")
+        infoBox.text("No data for given select.");
         infoBox.show();
     }
 
-    refreshPagination(query, tableName);
+    refreshPagination(query);
 
     // Enable tooltips
     document.querySelectorAll('[data-bs-toggle="tooltip"]')
@@ -410,12 +409,12 @@ function renderQuery(query) {
 }
 
 function onKeyDown(e) {
-    if ((e.ctrlKey || e.metaKey) && e.which == 13) {
-        executeSql()
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        executeSql();
     }
 }
 
-function arrayToCsv(data){
+function arrayToCsv(data) {
     return data.map(row =>
         row.map(String)  // convert every value to String
             .map(v => v.replaceAll('"', '""'))  // escape double quotes
@@ -431,7 +430,7 @@ function exportCsvTableQuery(query) {
         sel = db.prepare(query);
     } catch (ex) {
         showError(ex);
-        setIsLoading(false)
+        setIsLoading(false);
         return null;
     }
 
@@ -446,7 +445,7 @@ function exportCsvTableQuery(query) {
 }
 
 function exportCsvTable(tableName) {
-    return exportCsvTableQuery("SELECT * FROM '" + tableName + "'");
+    return exportCsvTableQuery(`SELECT * FROM '${tableName}'`);
 }
 
 function exportAllToCsv() {
@@ -461,8 +460,8 @@ function exportAllToCsv() {
         }
     }
 
-    zip.generateAsync({type:"blob"})
-        .then(function(content) {
+    zip.generateAsync({type: "blob"})
+        .then(function (content) {
             saveAs(content, "exported_all_db.zip");
         });
     setIsLoading(false);
