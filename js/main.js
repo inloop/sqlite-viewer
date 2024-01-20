@@ -1,3 +1,5 @@
+"use strict";
+
 const SQL_WASM_PATH = "https://inloop.github.io/sqlite-viewer/js/sql-wasm.wasm";
 
 const SQL_FROM_REGEX = /FROM\s+((?=['"])((["'])(?<g1>[^'"]+))|(?<g2>\w+))/mi;
@@ -15,7 +17,8 @@ const selectFormatter = function (item) {
     const index = item.text.indexOf("(");
     if (index > -1) {
         const name = item.text.substring(0, index);
-        return $(`<span>${name}<span style="color:#ccc">${item.text.substring(index - 1)}</span></span>`);
+        const tableName = item.text.substring(index - 1);
+        return $(`<span>${name}<span style="color:#ccc">${tableName}</span></span>`);
     } else {
         return item.text;
     }
@@ -26,7 +29,7 @@ initialize();
 function initialize() {
     let fileReaderOpts = {
         readAsDefault: "ArrayBuffer", on: {
-            load: function (e, file) {
+            load: function (e) {
                 loadDB(e.target.result);
             }
         }
@@ -98,13 +101,16 @@ function loadDB(arrayBuffer) {
     resetTableList();
 
     initSqlJs({locateFile: file => SQL_WASM_PATH}).then(function (SQL) {
-        let tables;
+        let tables = null;
         try {
             db = new SQL.Database(new Uint8Array(arrayBuffer));
 
             //Get all table names from master table
             tables = db.prepare("SELECT * FROM sqlite_master WHERE type='table' OR type='view' ORDER BY name");
         } catch (ex) {
+            if (tables !== null) {
+                tables.free();
+            }
             setIsLoading(false);
             window.alert(ex);
             return;
@@ -126,6 +132,7 @@ function loadDB(arrayBuffer) {
             const tableType = type !== "table" ? `, ${type}` : "";
             tableList.append(`<option value="${name}">${name} (${rowCount} rows${tableType})</option>`);
         }
+        tables.free();
 
         //Select first table and show It
         tableList.val(firstTableName);
@@ -144,8 +151,11 @@ function loadDB(arrayBuffer) {
 function getTableRowsCount(name) {
     const sel = db.prepare(`SELECT COUNT(*) AS count FROM '${name}'`);
     if (sel.step()) {
-        return sel.getAsObject()["count"];
+        const count = sel.getAsObject()["count"];
+        sel.free();
+        return count;
     } else {
+        sel.free();
         return -1;
     }
 }
@@ -162,12 +172,14 @@ function getQueryRowCount(query) {
         const sel = db.prepare(queryReplaced);
         if (sel.step()) {
             const count = sel.getAsObject()["count"];
+            sel.free();
 
             lastCachedQueryCount.select = query;
             lastCachedQueryCount.count = count;
 
             return count;
         } else {
+            sel.free();
             return -1;
         }
     } else {
@@ -176,19 +188,21 @@ function getQueryRowCount(query) {
 }
 
 function getTableColumnTypes(tableName) {
-    let result = [];
+    let result = new Map();
     const sel = db.prepare(`PRAGMA table_info('${tableName}')`);
 
     while (sel.step()) {
         const obj = sel.getAsObject();
-        result[obj.name] = obj["type"];
+        let type = obj["type"];
         if (obj["notnull"] === 1) {
-            result[obj.name] += " NOT NULL";
+            type += " NOT NULL";
         }
         if (obj["pk"] === 1) {
-            result[obj.name] += " PRIMARY KEY";
+            type += " PRIMARY KEY";
         }
+        result.set(obj.name, type);
     }
+    sel.free();
 
     return result;
 }
@@ -284,7 +298,7 @@ function setPage(el, next) {
     const query = editor.getValue();
     const limit = parseLimitFromQuery(query);
 
-    let pageToSet;
+    let pageToSet = 0;
     if (typeof next !== "undefined") {
         pageToSet = (next ? limit.currentPage : limit.currentPage - 2);
     } else {
@@ -362,16 +376,19 @@ function renderQuery(query) {
     infoBox.hide();
     dataBox.show();
 
-    let columnTypes = [];
+    let columnTypes = new Map();
     const tableName = getTableNameFromQuery(query);
     if (tableName != null) {
         columnTypes = getTableColumnTypes(tableName);
     }
 
-    let sel;
+    let sel = null;
     try {
         sel = db.prepare(query);
     } catch (ex) {
+        if (sel != null) {
+            sel.free();
+        }
         showError(ex);
         return;
     }
@@ -379,7 +396,7 @@ function renderQuery(query) {
     let isEmptyTable = true;
     const columnNames = sel.getColumnNames();
     for (let i = 0; i < columnNames.length; i++) {
-        const type = columnTypes[columnNames[i]];
+        const type = columnTypes.get(columnNames[i]);
         thead.append(`<th><span data-bs-toggle="tooltip" title="${type}">${columnNames[i]}</span></th>`);
     }
 
@@ -388,11 +405,21 @@ function renderQuery(query) {
         const tr = $('<tr>');
         const s = sel.get();
         for (let i = 0; i < s.length; i++) {
-            let value = htmlEncode(s[i]);
-            tr.append(`<td><span title="${value}">${value}</span></td>`);
+            const type = columnTypes.get(columnNames[i]).toLowerCase();
+            if (type === "blob" || type === "blob sub_type binary") {
+                if (s[i] === null) {
+                    tr.append(`<td><span title="Blob">null</span></td>`);
+                } else {
+                    renderBlobItem(tr, s[i]);
+                }
+            } else {
+                let value = htmlEncode(s[i]);
+                tr.append(`<td><span title="${value}">${value}</span></td>`);
+            }
         }
         tbody.append(tr);
     }
+    sel.free();
 
     if (isEmptyTable) {
         infoBox.text("No data for given select.");
@@ -406,6 +433,30 @@ function renderQuery(query) {
         .forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
 
     dataBox.editableTableWidget();
+}
+
+function renderBlobItem(tr, bytes) {
+    const td = document.createElement("td");
+    const span = document.createElement("span");
+    span.title = "Blob";
+    const downloadLink = document.createElement("a");
+    downloadLink.href = "javascript:void(0)";
+    downloadLink.innerText = `Download (${formatBytes(bytes.length)})`;
+    downloadLink.onclick = function () {
+        saveAs(new Blob([bytes]), "blob");
+    };
+    span.append(downloadLink);
+    td.append(span);
+    tr.append(td);
+}
+
+function formatBytes(bytes,decimals) {
+    if(bytes === 0) return '0 Bytes';
+    const k = 1024,
+        dm = decimals || 2,
+        sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'],
+        i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
 function onKeyDown(e) {
@@ -425,10 +476,13 @@ function arrayToCsv(data) {
 
 function exportCsvTableQuery(query) {
     let exportedRows = [];
-    let sel;
+    let sel = null;
     try {
         sel = db.prepare(query);
     } catch (ex) {
+        if (sel != null) {
+            sel.free();
+        }
         showError(ex);
         setIsLoading(false);
         return null;
@@ -441,6 +495,7 @@ function exportCsvTableQuery(query) {
         const rows = sel.get();
         exportedRows.push(...[rows]);
     }
+    sel.free();
     return exportedRows;
 }
 
