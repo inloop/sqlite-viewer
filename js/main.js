@@ -405,7 +405,8 @@ function renderQuery(query) {
         const tr = $('<tr>');
         const s = sel.get();
         for (let i = 0; i < s.length; i++) {
-            const type = columnTypes.get(columnNames[i]).toLowerCase();
+            const columnName = columnNames[i];
+            const type = columnTypes.has(columnName) ? columnTypes.get(columnName).toLowerCase() : "";
             if (type === "blob" || type === "blob sub_type binary") {
                 if (s[i] === null) {
                     tr.append(`<td><span title="Blob">null</span></td>`);
