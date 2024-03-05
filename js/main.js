@@ -396,7 +396,8 @@ function renderQuery(query) {
     let isEmptyTable = true;
     const columnNames = sel.getColumnNames();
     for (let i = 0; i < columnNames.length; i++) {
-        const type = columnTypes.get(columnNames[i]);
+        const columnName = columnNames[i];
+        const type = columnTypes.has(columnName) ? columnTypes.get(columnNames[i]) : "";
         thead.append(`<th><span data-bs-toggle="tooltip" title="${type}">${columnNames[i]}</span></th>`);
     }
 
