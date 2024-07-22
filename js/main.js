@@ -81,17 +81,37 @@ function initialize() {
     };
     const loadUrlDB = $.urlParam("url");
     if (loadUrlDB != null) {
-        setIsLoading(true);
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", decodeURIComponent(loadUrlDB), true);
-        xhr.responseType = "arraybuffer";
-        xhr.onload = function (e) {
-            loadDB(this.response);
-        };
-        xhr.onerror = function (e) {
-            setIsLoading(false);
-        };
-        xhr.send();
+        const sendRequest = (useProxy = false) => {
+            setIsLoading(true);
+            const url = useProxy ? "https://corsproxy.io/?" + loadUrlDB : loadUrlDB;
+            const xhr = new XMLHttpRequest();
+            xhr.open(
+                "GET",
+                decodeURIComponent(url),
+                true
+            );
+            xhr.responseType = "arraybuffer";
+            xhr.onload = function (e) {
+                loadDB(this.response);
+                return true;
+            };
+            xhr.onerror = function (e) {
+                setIsLoading(false);
+                return false;
+            };
+            xhr.send();
+        }
+        const noCORSRequest = sendRequest();
+        if (!noCORSRequest) {
+            const proxyConfirm = window.confirm(
+                "Unable to load the database from the provided URL due to possible CORS restrictions.\n" +
+                "Would you like to retry using a proxy?\n\n" +
+                "Note: Using the proxy may expose your database to corsproxy.io services."
+            );         
+            if (proxyConfirm) {
+                sendRequest(true);
+            }
+        }
     }
 }
 
