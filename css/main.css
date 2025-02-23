@@ -1,14 +1,39 @@
-body {
-    background: #f5f5f5;
+@media (prefers-color-scheme: light) {
+    body {
+        background: #f5f5f5;
+    }
+    
+    .drag {
+        background-color: lightblue;
+    }
+    
+    #header {
+        background: #A0CFFF;
+        color: #3474A8;
+    }
+    
+    .table-hover tbody tr:hover td, .table-hover tbody tr:hover th {
+        background-color: #F5F5E7;
+    }
 }
 
-.drag {
-    background-color: lightblue;
-}
-
-#header {
-    background: #A0CFFF;
-    color: #3474A8;
+@media (prefers-color-scheme: dark) {
+    body {
+        background: #1a1a1a;
+    }
+    
+    .drag {
+        background-color: #1e3a5f;
+    }
+    
+    #header {
+        background: #0d3b66;
+        color: #7ab5e6;
+    }
+    
+    .table-hover tbody tr:hover td, .table-hover tbody tr:hover th {
+        background-color: #2c2c1e;
+    }
 }
 
 #dropzone {
@@ -22,10 +47,6 @@ body {
 
 .ace_hidden-cursors {
     opacity: 0;
-}
-
-.table-hover tbody tr:hover td, .table-hover tbody tr:hover th {
-    background-color: #F5F5E7;
 }
 
 #data {
