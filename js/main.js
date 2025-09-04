@@ -70,6 +70,9 @@ function initialize() {
         el.stopPropagation();
     });
 
+    //Update copyright year to current year
+    $("#current-year").text(new Date().getFullYear());
+
     //Check url to load remote DB
     $.urlParam = function (name) {
         let results = new RegExp( `[\?&]${name}=([^&#]*)`).exec(window.location.href);
