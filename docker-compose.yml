@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  sqlite-viewer:
+    build: .
+    container_name: sqlite-viewer
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    volumes:
+      # Optional: Mount a directory to share SQLite files
+      - ./examples:/usr/share/nginx/html/examples:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sqlite-viewer.rule=Host(`sqlite-viewer.localhost`)"
+      - "traefik.http.services.sqlite-viewer.loadbalancer.server.port=80"
+    networks:
+      - sqlite-viewer-network
+
+  # Optional: Add a development service with live reload
+  sqlite-viewer-dev:
+    build: .
+    container_name: sqlite-viewer-dev
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    volumes:
+      # Mount source code for development
+      - .:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    profiles:
+      - development
+    networks:
+      - sqlite-viewer-network
+
+networks:
+  sqlite-viewer-network:
+    driver: bridge

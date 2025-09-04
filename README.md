@@ -10,6 +10,58 @@ You can also load remote files (using JS ajax, remote server must send `Access-C
 
 ![](/img/preview.png?raw=true "Example sqlite")
 
+## Quick Start
+
+### Using Docker (Recommended)
+
+```bash
+# Clone and run with Docker Compose
+git clone https://github.com/inloop/sqlite-viewer.git
+cd sqlite-viewer
+docker-compose up -d
+```
+
+Access at: `http://localhost:8080`
+
+### Direct Usage
+
+Simply open `index.html` in your browser or serve the files with any web server.
+
+## Docker Support
+
+This project includes full Docker support for easy deployment:
+
+- **Production deployment** with optimized nginx configuration
+- **Development mode** with live file mounting
+- **Security headers** and performance optimizations included
+- **Health checks** and proper error handling
+
+See [DOCKER.md](DOCKER.md) for detailed Docker usage instructions.
+
+### Quick Docker Commands
+
+```bash
+# Production mode
+docker-compose up -d
+
+# Development mode with live reload
+docker-compose --profile development up -d
+
+# Build and run manually
+docker build -t sqlite-viewer .
+docker run -d -p 8080:80 sqlite-viewer
+```
+
+## Features
+
+- 🗄️ **Client-side SQLite viewing** - No file uploads, everything runs in your browser
+- 🔍 **SQL query execution** - Run custom SQL queries with syntax highlighting
+- 📊 **Table browsing** - Easy navigation between tables and views
+- 📥 **CSV export** - Export tables and query results
+- 🔗 **URL loading** - Load SQLite files from remote URLs
+- 🐳 **Docker ready** - Production-ready containerized deployment
+- 📱 **Responsive design** - Works on desktop and mobile devices
+
 ### License
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.

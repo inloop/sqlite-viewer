@@ -11,6 +11,11 @@ body {
     color: #3474A8;
 }
 
+#header a:hover img {
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
 #dropzone {
     height: 450px;
     cursor: pointer;
