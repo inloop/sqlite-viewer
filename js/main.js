@@ -1,16 +1,12 @@
 "use strict";
 
-const SQL_WASM_PATH = "js/sql-wasm.wasm";
-
 const SQL_FROM_REGEX = /FROM\s+((?=['"])((["'])(?<g1>[^'"]+))|(?<g2>\w+))/mi;
 const SQL_LIMIT_REGEX = /\bLIMIT\s+(\d+)(?:\s*,\s*(\d+)|\s+OFFSET\s+(\d+))?(\s*;?\s*)$/i;
-const SQL_SELECT_REGEX = /SELECT\s+[^;]+\s+FROM\s+/mi;
 
 function quoteIdentifier(name) {
     return '"' + name.replace(/"/g, '""') + '"';
 }
 
-let dbLoaded = false;
 let worker = null;
 let nextMessageId = 0;
 const pendingMessages = new Map();
@@ -151,7 +147,6 @@ async function loadDB(arrayBuffer) {
     try {
         // Send ArrayBuffer to Worker using transferable array for 0-copy transfer
         await sendWorkerMessage("open", { buffer: arrayBuffer }, [arrayBuffer]);
-        dbLoaded = true;
         renderQueryHistory();
 
         const firstTableName = await populateTableList(true);
