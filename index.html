@@ -54,10 +54,10 @@
     </header>
 
     <div id="compat-error" class="alert alert-danger row rounded-0 d-none" role="alert">
-        Sorry, this application requires modern web technologies that are not supported by your browser: WebAssembly, Web Workers, and the File API. Please use an up-to-date browser.
+        Sorry, this application requires a browser that supports  WebAssembly, Web Workers, and the File API.
     </div>
 
-    <div class="row text-center p-3 align-items-stretch" id="dropzone" onclick="dropzoneClick()">
+    <div class="row text-center p-3 align-items-stretch" id="dropzone">
         <div class="d-flex border border-info-subtle rounded-1 align-items-center justify-content-center">
             <div id="drop-text">
                 <b>Drop file here</b> to load content or click on this box to open file dialog.<br/>
@@ -87,9 +87,9 @@
                     Export
                 </button>
                 <ul class="dropdown-menu" aria-labelledby="dropdownMenu1">
-                    <li><a class="dropdown-item" href="#" onclick="exportAllToCsv()">All tables to CSV</a></li>
-                    <li><a class="dropdown-item" href="#" onclick="exportSelectedTableToCsv()">Selected table to CSV</a></li>
-                    <li><a class="dropdown-item" href="#" onclick="exportQueryTableToCsv()">Query table to CSV</a></li>
+                    <li><a class="dropdown-item" href="#" data-action="export-all">All tables to CSV</a></li>
+                    <li><a class="dropdown-item" href="#" data-action="export-selected">Selected table to CSV</a></li>
+                    <li><a class="dropdown-item" href="#" data-action="export-query">Query table to CSV</a></li>
                 </ul>
             </div>
         </div>
@@ -97,7 +97,7 @@
         <div class="d-flex mt-3 mb-3">
             <div id="sql-editor" class="form-control form-control-lg col me-2"></div>
             <div class="d-flex flex-column gap-1 col-auto">
-                <button class="btn btn-primary flex-fill" id="sql-run" type="submit" onclick="executeSql()">Execute</button>
+                <button class="btn btn-primary flex-fill" id="sql-run" type="submit">Execute</button>
                 <button class="btn btn-outline-secondary flex-fill d-flex align-items-center justify-content-center" id="sql-history-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#history-sidebar" aria-controls="history-sidebar">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-clock-history me-1" viewBox="0 0 16 16">
                         <path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022zm2.004.45a7 7 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342zm1.37.71a7 7 0 0 0-.439-.27l.493-.87a8 8 0 0 1 .979.654l-.615.789a7 7 0 0 0-.418-.302zm1.834 1.39a7 7 0 0 0-.653-.796l.724-.69c.27.285.52.59.747.91l-.818.576zm.744 1.352a7 7 0 0 0-.214-.382l.893-.45a8 8 0 0 1 .45.824l-.893.382zm.09 2.007a7 7 0 0 0-.022-.589h.997c.012.302.012.605 0 .907h-.997zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"/>
@@ -126,13 +126,13 @@
 
 <div id="bottom-bar" class="d-flex position-sticky justify-content-center bottom-0 pb-4 d-none pe-none">
     <div class="row bg-body border border-dark shadow p-3 rounded-2 pe-auto">
-        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-prev" type="submit" onclick="setPage(this, false)">
+        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-prev" type="button">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
                 <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
             </svg>
         </button>
-        <a href="javascript:void(0)" data-bs-toggle="tooltip" class="text-decoration-none col-auto" onclick="setPage(this)" id="pager"></a>
-        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-next" type="submit" onclick="setPage(this, true)">
+        <a href="#" data-bs-toggle="tooltip" class="text-decoration-none col-auto" id="pager"></a>
+        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-next" type="button">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-right-fill" viewBox="0 0 16 16">
                 <path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/>
             </svg>
@@ -153,13 +153,13 @@
     <div class="offcanvas-body d-flex flex-column h-100">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <small class="text-secondary" id="history-count">0 queries saved</small>
-            <button class="btn btn-sm btn-outline-danger" id="clear-active-history" onclick="clearQueryHistory()">Clear Active</button>
+            <button class="btn btn-sm btn-outline-danger" id="clear-active-history">Clear Active</button>
         </div>
         <div id="history-list" class="d-flex flex-column gap-2 overflow-y-auto flex-grow-1 mb-3">
             <!-- Cards populated dynamically via JS -->
         </div>
         <div class="border-top pt-3 text-center mt-auto">
-            <button class="btn btn-sm btn-link text-danger text-decoration-none" onclick="clearAllDatabasesHistory()">Clear all databases history</button>
+            <button class="btn btn-sm btn-link text-danger text-decoration-none" id="clear-all-history">Clear all databases history</button>
         </div>
     </div>
 </div>

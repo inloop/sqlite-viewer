@@ -103,6 +103,34 @@ function initialize() {
     $("#resizer").click(toggleFullScreen);
     $("#sql-editor").keydown(onKeyDown);
 
+    $("#dropzone").on("click", dropzoneClick);
+    $("#sql-run").on("click", executeSql);
+
+    // The export links are <a href="#">; stop the default jump so it can't
+    // clear the #url / #sql hash parameters.
+    $('[data-action="export-all"]').on("click", (event) => {
+        event.preventDefault();
+        exportAllToCsv();
+    });
+    $('[data-action="export-selected"]').on("click", (event) => {
+        event.preventDefault();
+        exportSelectedTableToCsv();
+    });
+    $('[data-action="export-query"]').on("click", (event) => {
+        event.preventDefault();
+        exportQueryTableToCsv();
+    });
+
+    $("#page-prev").on("click", (event) => setPage(event.currentTarget, false));
+    $("#page-next").on("click", (event) => setPage(event.currentTarget, true));
+    $("#pager").on("click", (event) => {
+        event.preventDefault();
+        setPage(event.currentTarget);
+    });
+
+    $("#clear-active-history").on("click", clearQueryHistory);
+    $("#clear-all-history").on("click", clearAllDatabasesHistory);
+
     tableSelect = new TomSelect("#tables", {
         placeholder: "Select a table",
         maxItems: 1,
