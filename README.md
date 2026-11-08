@@ -59,6 +59,12 @@ pinned versions before serving the site:
 ./scripts/fetch-assets.sh   # or: make deps
 ```
 
+Remove the downloaded files again (restore the tree to its checked-in state):
+
+```bash
+make clean-deps
+```
+
 Then serve the directory over HTTP (the SQLite WASM backend does not work from
 a `file://` URL), for example:
 
