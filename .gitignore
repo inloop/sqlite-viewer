@@ -9,7 +9,6 @@ node_modules/
 # Downloaded third-party assets (run scripts/fetch-assets.sh)
 /css/bootstrap.min.css
 /js/bootstrap.bundle.min.js
-/js/jquery-4.0.0.slim.min.js
 /css/tom-select.bootstrap5.min.css
 /js/tom-select.min.js
 /js/prism.js

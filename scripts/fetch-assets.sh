@@ -69,12 +69,6 @@ bootstrap() {
         "js/bootstrap.bundle.min.js"
 }
 
-jquery() {
-    fetch "https://code.jquery.com/jquery-4.0.0.slim.min.js" \
-        "f031a9bf5dc7226fb9883356c355eac60141e268fec8e28535bfad1c164ea307" \
-        "js/jquery-4.0.0.slim.min.js"
-}
-
 tom_select() {
     fetch "https://cdn.jsdelivr.net/npm/tom-select@2.7.0/dist/js/tom-select.complete.min.js" \
         "5c1315fe8e62c7b9342cbf82c4d5454b83ab97d507a2e9803dbaef72433438bc" \
@@ -136,7 +130,6 @@ sqlite_wasm() {
 
 main() {
     bootstrap
-    jquery
     tom_select
     prism
     jszip

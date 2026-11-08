@@ -111,8 +111,8 @@ function initialize() {
         Prism.highlightElement(el);
     });
 
-    $(".no-propagate").on("click", function (el) {
-        el.stopPropagation();
+    $(".no-propagate").on("click", function (event) {
+        event.stopPropagation();
     });
 
     const loadUrlDB = hashParams.get("url");
@@ -748,7 +748,7 @@ async function exportAllToCsv() {
 }
 
 async function exportSelectedTableToCsv() {
-    const tableName = $("#tables").val();
+    const tableName = tableSelect.getValue();
     setIsLoading(true);
 
     const exportedRows = await exportCsvTable(tableName);
