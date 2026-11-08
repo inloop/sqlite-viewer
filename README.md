@@ -5,9 +5,15 @@ SQLite Viewer
 
 ![](/img/preview.png?raw=true "Screenshot")
 
-A fully functional sqlite database will be loaded into your memory and changes 
-will not affect the file you loaded it from. You can however export the 
-database after making changes.
+A fully functional sqlite database is loaded into your browser, and changes do
+not affect the file you loaded it from. You can export the database after
+making changes.
+
+When the site is served with the cross-origin isolation headers (`COOP`/`COEP`)
+- which the bundled `.htaccess` and Docker image set - changes are also stored
+in your browser and persist across reloads. Use *forget saved copies* in the
+footer to clear them. Without those headers the viewer still works, just
+in-memory.
 
 You can also load remote files (using JS ajax, remote server must send `Access-Control-Allow-Origin:*`) 
 and prefill a SQL query using hash parameters:
@@ -33,7 +39,8 @@ not stored here) as pinned versions directly from their sources:
 (You may remove them again with `make clean-deps`).
 
 Serve the directory over HTTP (the SQLite WASM backend does not work from
-a `file://` URL), for example using `python3 -m http.server`.
+a `file://` URL), for example using `python3 -m http.server`. To assemble a
+clean, ready-to-serve copy instead, run `make dist` (output in `dist/`).
 
 The Docker image and the GitHub Pages workflow
 (`.github/workflows/pages.yml`) run the download step automatically.

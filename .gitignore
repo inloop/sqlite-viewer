@@ -6,7 +6,8 @@
 node_modules/
 *.map
 
-# Release archives built by `make release`
+# Deployable site (make dist) and release archives (make release)
+/dist/
 /sqlite-viewer*.zip
 
 # Downloaded third-party assets (run scripts/fetch-assets.sh)
@@ -21,3 +22,4 @@ node_modules/
 /js/codejar.js
 /js/sqlite3.js
 /js/sqlite3.wasm
+/js/sqlite3-opfs-async-proxy.js

@@ -165,6 +165,15 @@ function bindUiEvents() {
     });
     updateDatabaseExportItems();
 
+    $('[data-action="forget-storage"]').on("click", async (event) => {
+        event.preventDefault();
+        const ok = await showDialog(
+            "Delete all databases saved in this browser? The files you loaded are not affected.");
+        if (!ok) return;
+        await sendWorkerMessage("forget");
+        location.reload();
+    });
+
     $("#page-prev").on("click", (event) => setPage(event.currentTarget, false));
     $("#page-next").on("click", (event) => setPage(event.currentTarget, true));
     $("#pager").on("click", (event) => {
@@ -248,7 +257,9 @@ async function loadDB(arrayBuffer) {
 
     try {
         // Send ArrayBuffer to Worker using transferable array for 0-copy transfer
-        await sendWorkerMessage("open", { buffer: arrayBuffer }, [arrayBuffer]);
+        const { persisted } = await sendWorkerMessage(
+            "open", { buffer: arrayBuffer, key: currentDbKey }, [arrayBuffer]);
+        setStoragePersisted(persisted);
         renderQueryHistory();
 
         const firstTableName = await populateTableList(true);
@@ -615,6 +626,11 @@ function showDialog(message, defaultValue) {
             }, { once: true });
         }
     });
+}
+
+// Show or hide the footer note that tells the user their edits are saved.
+function setStoragePersisted(persisted) {
+    $("#storage-note").toggleClass("d-none", !persisted);
 }
 
 function setPagerVisible(visible) {

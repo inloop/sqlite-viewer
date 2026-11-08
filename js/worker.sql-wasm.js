@@ -10,11 +10,52 @@ const sqlite3Promise = sqlite3InitModule().then((loaded) => {
     sqlite3 = loaded;
 });
 
-// Open a fresh in-memory database, optionally seeded from a serialized buffer.
-function openDatabase(buffer) {
-    if (db) db.close();
+// The OPFS-backed VFS is only installed when the page is cross-origin
+// isolated (COOP/COEP response headers); it needs SharedArrayBuffer. Without
+// it we fall back to an in-memory database.
+function opfsAvailable() {
+    return typeof sqlite3.oo1.OpfsDb === "function";
+}
+
+// A stable, filesystem-safe name for a database key.
+async function opfsFileName(key) {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key));
+    const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+    return `sqlite-viewer-${hex.slice(0, 40)}.sqlite`;
+}
+
+async function opfsFileExists(name) {
+    try {
+        const root = await navigator.storage.getDirectory();
+        await root.getFileHandle(name);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+// Open the database identified by `key`. With OPFS it is stored in the browser
+// and reused on the next load, so edits survive a reload; otherwise it is a
+// throwaway in-memory database seeded from `buffer`.
+async function openDatabase(buffer, key) {
+    if (db) { db.close(); db = null; }
+
+    if (opfsAvailable()) {
+        const name = await opfsFileName(key || "default");
+        if (await opfsFileExists(name)) {
+            // Reuse the saved copy, which may hold earlier edits.
+            db = new sqlite3.oo1.OpfsDb(name);
+        } else {
+            if (buffer) {
+                await sqlite3.oo1.OpfsDb.importDb(name, new Uint8Array(buffer));
+            }
+            db = new sqlite3.oo1.OpfsDb(name);
+        }
+        return { persisted: true };
+    }
+
     db = new sqlite3.oo1.DB();
-    if (!buffer) return;
+    if (!buffer) return { persisted: false };
 
     const bytes = new Uint8Array(buffer);
     const p = sqlite3.wasm.allocFromTypedArray(bytes);
@@ -26,6 +67,18 @@ function openDatabase(buffer) {
         sqlite3.wasm.dealloc(p);
         throw new Error(`Failed to deserialize database (SQLite error code: ${rc})`);
     }
+    return { persisted: false };
+}
+
+// Delete every database this app has stored in the browser.
+async function forgetStoredDatabases() {
+    if (db) { db.close(); db = null; }
+    const root = await navigator.storage.getDirectory();
+    const names = [];
+    for await (const handle of root.values()) {
+        if (handle.kind === "file") names.push(handle.name);
+    }
+    await Promise.all(names.map((name) => root.removeEntry(name)));
 }
 
 // Run one or more SQL statements, returning the first statement's result set.
@@ -119,11 +172,10 @@ function countRows(sql) {
     return count;
 }
 
-function handleMessage(data) {
+async function handleMessage(data) {
     switch (data.action) {
         case "open":
-            openDatabase(data.buffer);
-            postMessage({ id: data.id, ready: true });
+            postMessage({ id: data.id, ...(await openDatabase(data.buffer, data.key)) });
             break;
 
         case "exec":
@@ -150,6 +202,11 @@ function handleMessage(data) {
             break;
         }
 
+        case "forget":
+            await forgetStoredDatabases();
+            postMessage({ id: data.id, forgotten: true });
+            break;
+
         case "close":
             if (db) {
                 db.close();
@@ -168,17 +225,11 @@ onmessage = function (event) {
     if (!data || !data.action) return;
 
     sqlite3Promise
-        .then(() => {
-            try {
-                handleMessage(data);
-            } catch (err) {
-                postMessage({ id: data.id, error: err.message });
-            }
-        })
         .catch((err) => {
-            postMessage({
-                id: data.id,
-                error: "Failed to initialize SQLite3 WASM backend: " + err.message
-            });
+            throw new Error("Failed to initialize SQLite3 WASM backend: " + err.message);
+        })
+        .then(() => handleMessage(data))
+        .catch((err) => {
+            postMessage({ id: data.id, error: err.message || String(err) });
         });
 };

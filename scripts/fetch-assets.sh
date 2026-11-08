@@ -128,6 +128,10 @@ sqlite_wasm() {
     cp "$TMP/$release/jswasm/sqlite3.js" "$ROOT/js/sqlite3.js"
     echo "==> js/sqlite3.wasm"
     cp "$TMP/$release/jswasm/sqlite3.wasm" "$ROOT/js/sqlite3.wasm"
+    # Only used by the OPFS-backed (persistent) database.
+    echo "==> js/sqlite3-opfs-async-proxy.js"
+    cp "$TMP/$release/jswasm/sqlite3-opfs-async-proxy.js" \
+        "$ROOT/js/sqlite3-opfs-async-proxy.js"
 }
 
 main() {

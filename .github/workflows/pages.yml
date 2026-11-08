@@ -29,13 +29,16 @@ jobs:
       - name: Download pinned external assets
         run: ./scripts/fetch-assets.sh
 
+      - name: Build the site
+        run: ./scripts/build-dist.sh
+
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v5
         with:
-          path: .
+          path: dist
 
   deploy:
     needs: build
