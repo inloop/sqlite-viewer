@@ -78,11 +78,22 @@ select2_bootstrap_theme() {
         "css/select2-bootstrap-5-theme.min.css"
 }
 
+prism() {
+    # Prism core plus the SQL grammar it highlights.
+    fetch "https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-core.min.js" \
+        "6caad316dd991f24f8004e0b9c19c055cb5829ff65e973fbee406f96d81b8e7e" \
+        "js/prism.js"
+    fetch "https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-sql.min.js" \
+        "3fc5f8ce69950ec73adc972f061df42aaea78faa4864709134ea2adc083f3a33" \
+        "js/prism-sql.min.js"
+}
+
 main() {
     bootstrap
     jquery
     select2
     select2_bootstrap_theme
+    prism
     echo "All external assets downloaded successfully."
 }
 

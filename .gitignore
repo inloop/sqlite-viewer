@@ -13,3 +13,5 @@ node_modules/
 /css/select2.min.css
 /js/select2.min.js
 /css/select2-bootstrap-5-theme.min.css
+/js/prism.js
+/js/prism-sql.min.js
