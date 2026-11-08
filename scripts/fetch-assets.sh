@@ -89,10 +89,11 @@ prism() {
         "js/prism-sql.min.js"
 }
 
-jszip() {
-    fetch "https://cdn.jsdelivr.net/npm/jszip@3.10.2/dist/jszip.min.js" \
-        "7f839b2d4688b845c105ebf5d2f9803075f91ea0fe72bdaac176c3a04dd3d2c1" \
-        "js/jszip.min.js"
+fflate() {
+    # Zip read/write; smaller and faster than JSZip for our use.
+    fetch "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js" \
+        "c3b34f2e9f5e74d4d7d64e01cac7a0c01954c6c406414d42185c7b53d6875ddf" \
+        "js/fflate.min.js"
 }
 
 filesaver() {
@@ -133,7 +134,7 @@ main() {
     bootstrap
     tom_select
     prism
-    jszip
+    fflate
     filesaver
     codejar
     sqlite_wasm

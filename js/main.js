@@ -520,34 +520,30 @@ function handleFile(file) {
     }
 }
 
+const DATABASE_EXTENSIONS = [".sqlite", ".db", ".db3", ".sqlite3"];
+
 async function handleZipFile(file) {
     setIsLoading(true);
     try {
-        const zip = await JSZip.loadAsync(file);
-
-        let dbFile = null;
-        zip.forEach((relativePath, zipEntry) => {
-            // Take the first database entry so the choice is deterministic.
-            if (!dbFile && !zipEntry.dir && (
-                relativePath.endsWith(".sqlite") ||
-                relativePath.endsWith(".db") ||
-                relativePath.endsWith(".db3") ||
-                relativePath.endsWith(".sqlite3")
-            )) {
-                dbFile = zipEntry;
-            }
+        const buffer = file instanceof ArrayBuffer ? file : await file.arrayBuffer();
+        // Inflate only entries that look like a database, then take the first
+        // one so the choice is deterministic.
+        const entries = fflate.unzipSync(new Uint8Array(buffer), {
+            filter: (entry) => !entry.name.endsWith("/") &&
+                DATABASE_EXTENSIONS.some(ext => entry.name.endsWith(ext))
         });
 
-        if (!dbFile) {
+        const dbName = Object.keys(entries)[0];
+        if (dbName === undefined) {
             throw new Error("No SQLite database (.sqlite, .db, .db3, .sqlite3) found inside the ZIP file.");
         }
 
-        const arrayBuffer = await dbFile.async("arraybuffer");
+        const dbBytes = entries[dbName];
         if (file && typeof file.name === "string") {
-            currentDbKey = `zip:${file.name}:${dbFile.name}-${arrayBuffer.byteLength}`;
-            currentDbName = dbFile.name;
+            currentDbKey = `zip:${file.name}:${dbName}-${dbBytes.byteLength}`;
+            currentDbName = dbName;
         }
-        await loadDB(arrayBuffer);
+        await loadDB(dbBytes.slice().buffer);
 
     } catch (err) {
         setIsLoading(false);
@@ -913,22 +909,28 @@ async function exportCsvTable(tableName) {
     return await exportCsvTableQuery(`SELECT * FROM ${quoteIdentifier(tableName)}`);
 }
 
+// fflate's async API is callback-based; wrap it in a promise.
+function zipFiles(files) {
+    return new Promise((resolve, reject) => {
+        // level 0 = STORE, matching the previous (uncompressed) zip export.
+        fflate.zip(files, { level: 0 }, (err, data) => (err ? reject(err) : resolve(data)));
+    });
+}
+
 async function exportAllToCsv() {
     setIsLoading(true);
-    const zip = new JSZip();
     try {
+        const files = {};
         for (const tableName of loadedTableNames) {
             const exportedRows = await exportCsvTable(tableName);
-            if (exportedRows != null) {
-                zip.file(tableName + ".csv", arrayToCsv(exportedRows));
-            } else {
+            if (exportedRows == null) {
                 setIsLoading(false);
                 return;
             }
+            files[tableName + ".csv"] = fflate.strToU8(arrayToCsv(exportedRows));
         }
 
-        const content = await zip.generateAsync({type: "blob"});
-        saveAs(content, "exported_all_db.zip");
+        saveAs(new Blob([await zipFiles(files)]), "exported_all_db.zip");
     } catch (e) {
         showError(e.message || e);
     }

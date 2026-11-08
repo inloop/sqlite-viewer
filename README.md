@@ -78,7 +78,7 @@ The Docker image and the GitHub Pages workflow
 ## Libraries
 
 - Using the official [sqlite3-wasm](https://sqlite.org/wasm/doc/trunk/index.md) for parsing sqlite files.
-- Can handle SQLite files in ZIP files, thanks to [jszip](https://stuk.github.io/jszip/).
+- Can handle SQLite files in ZIP files, thanks to [fflate](https://github.com/101arrowz/fflate).
 - Enjoy query editing with SQL syntax highlighting thanks to [CodeJar](https://medv.io/codejar/) and [PrismJS](https://prismjs.com/).
 - Using [Bootstrap](https://getbootstrap.com/) 5.3.8, [Tom Select](https://tom-select.js.org/) and [FileSaver.js](https://github.com/eligrey/FileSaver.js/).
 
