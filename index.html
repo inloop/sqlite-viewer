@@ -17,7 +17,18 @@
     <meta property="og:title" content="SQLite Viewer">
     <meta property="og:description" content="sqlite file viewer">
     <meta property="og:image" content="https://inloop.github.io/sqlite-viewer/img/icon.png">
-    <script src="js/theme.js"></script>
+    <script>
+        // Follow the OS color scheme. Bootstrap's dark mode keys off the
+        // data-bs-theme attribute, so resolve it before the first paint.
+        (function () {
+            const media = window.matchMedia("(prefers-color-scheme: dark)");
+            function applyTheme() {
+                document.documentElement.setAttribute("data-bs-theme", media.matches ? "dark" : "light");
+            }
+            media.addEventListener("change", applyTheme);
+            applyTheme();
+        })();
+    </script>
 </head>
 <body>
 
@@ -28,18 +39,6 @@
         <div class="col">
             <h1 class="h4 mb-0">SQLite Viewer</h1>
             <p class="mb-0">view sqlite file online</p>
-        </div>
-
-        <div class="dropdown col-auto me-1">
-            <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" id="theme-menu"
-                    data-bs-toggle="dropdown" aria-expanded="false">
-                <span class="visually-hidden">Theme:</span> <span id="theme-value">System</span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end" role="menu" aria-labelledby="theme-menu">
-                <li><button class="dropdown-item" type="button" role="menuitemradio" data-theme-value="system" aria-checked="false">System</button></li>
-                <li><button class="dropdown-item" type="button" role="menuitemradio" data-theme-value="light" aria-checked="false">Light</button></li>
-                <li><button class="dropdown-item" type="button" role="menuitemradio" data-theme-value="dark" aria-checked="false">Dark</button></li>
-            </ul>
         </div>
 
         <a href="#" id="resizer" aria-label="Expand/Collapse" class="col-auto text-decoration-none">

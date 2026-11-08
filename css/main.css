@@ -1,5 +1,5 @@
-/* Theme colors follow <html data-bs-theme>, which theme.js sets to "light" or
-   "dark" (resolving the "system" preference against prefers-color-scheme). */
+/* Theme colors follow <html data-bs-theme>, which the inline head script in
+   index.html sets to "light" or "dark" from prefers-color-scheme. */
 [data-bs-theme="light"] body {
     background: #f5f5f5;
 }

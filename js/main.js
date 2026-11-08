@@ -157,30 +157,9 @@ initialize();
 
 function initialize() {
     bindUiEvents();
-    initThemeToggle();
     initTableSelect();
     initEditor();
     initDatabase();
-}
-
-// Keep the header theme control in sync with the stored preference.
-function initThemeToggle() {
-    if (!window.themeControl) return;
-
-    const label = document.getElementById("theme-value");
-    const items = Array.from(document.querySelectorAll("[data-theme-value]"));
-
-    function sync() {
-        const preference = window.themeControl.getPreference();
-        if (label) label.textContent = preference.charAt(0).toUpperCase() + preference.slice(1);
-        items.forEach(item => item.setAttribute("aria-checked", String(item.dataset.themeValue === preference)));
-    }
-
-    items.forEach(item => item.addEventListener("click", () => {
-        window.themeControl.setPreference(item.dataset.themeValue);
-    }));
-    document.addEventListener("themechange", sync);
-    sync();
 }
 
 function bindUiEvents() {
