@@ -77,7 +77,7 @@ docker run --rm -p 8080:80 \
 
 ## License
 
-Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE) for details.
+Licensed under the Apache License, Version 2.0 — see [LICENSE.md](LICENSE.md) for details.
 
 The bundled third-party libraries keep their own licenses: Bootstrap (MIT),
 Tom Select (Apache-2.0), PrismJS (MIT), CodeJar (MIT), fflate (MIT),
