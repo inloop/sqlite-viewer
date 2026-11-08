@@ -30,6 +30,10 @@ function initWorker() {
     };
     worker.onerror = function (err) {
         console.error("Worker error:", err);
+        for (const { reject } of pendingMessages.values()) {
+            reject(new Error("Worker error: " + (err.message || "unknown error")));
+        }
+        pendingMessages.clear();
     };
 }
 
