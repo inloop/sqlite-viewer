@@ -115,6 +115,13 @@
     height: 450px;
     cursor: pointer;
     transition: height 0.5s ease;
+    /* A .row's negative gutters would make this wider than the output box;
+       drop them and use the same 0.75rem inset so the drop area and the
+       editor/table line up. */
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
 }
 
 #output-box {
