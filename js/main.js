@@ -96,14 +96,11 @@ const infoBox = $("#info");
 let hashParams = new URLSearchParams(window.location.hash.substring(1));
 const appConfig = window.APP_CONFIG || {};
 
-// Percent-encode a hash component, but leave the characters that
-// URLSearchParams already reads back literally (/, :, ,, ;, @, $, ?, !, ',
-// (, ), *, ~) unescaped so the URL stays readable. Space, +, %, &, = and #
-// stay encoded so the hash still round-trips.
+// minimize encoding for nicer URLs
 function encodeHashComponent(text) {
     return encodeURIComponent(text)
         .replace(/%20/g, "+")
-        .replace(/%(2F|3A|2C|3B|40|24|3F)/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+        .replace(/%(2F|3A|2C|3B|40|24|3F|3D|23)/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 // Set (or, with a null value, remove) a hash parameter and sync the URL.
