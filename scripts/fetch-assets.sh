@@ -48,6 +48,21 @@ fetch_zip() {
     printf '%s' "$file"
 }
 
+# download <url> <sha256>
+#   Downloads and verifies a file, printing the path to the local copy. The
+#   copy keeps the original file name so archives can reference it.
+download() {
+    url=$1
+    sha=$2
+    name=$(printf '%s' "$url" | sha256sum | cut -c1-12)
+    dir="$TMP/$name"
+    file="$dir/$(basename -- "$url")"
+    mkdir -p "$dir"
+    curl -fsSL --retry 3 -o "$file" "$url"
+    printf '%s  %s\n' "$sha" "$file" | sha256sum -c - >/dev/null
+    printf '%s' "$file"
+}
+
 bootstrap() {
     fetch "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" \
         "d85327d99c7a3ee1f9b5d0500d1370acea3ad2db39c163c2f51f232baedbdede" \
@@ -125,6 +140,17 @@ sqlite_wasm() {
     cp "$TMP/$release/jswasm/sqlite3.wasm" "$ROOT/js/sqlite3.wasm"
 }
 
+chinook() {
+    need zip
+    # Ship the sample database as a ZIP so the ZIP import path stays exercised.
+    src=$(download "https://github.com/lerocha/chinook-database/releases/download/v1.4.5/Chinook_Sqlite.sqlite" \
+        "bdf635be69850bd3be09c9a2dbeef7ddfb80036bd3ef3381383cd03b61e4a61a")
+    mkdir -p "$ROOT/examples"
+    echo "==> examples/Chinook_Sqlite.zip"
+    rm -f "$ROOT/examples/Chinook_Sqlite.zip"
+    zip -q -j "$ROOT/examples/Chinook_Sqlite.zip" "$src"
+}
+
 main() {
     bootstrap
     jquery
@@ -135,6 +161,7 @@ main() {
     filesaver
     codejar
     sqlite_wasm
+    chinook
     echo "All external assets downloaded successfully."
 }
 
