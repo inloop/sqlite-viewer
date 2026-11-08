@@ -648,7 +648,7 @@ function renderTableLabel(data, escape) {
     const text = data.text ?? "";
     const index = text.indexOf("(");
     if (index > -1) {
-        return `<div>${escape(text.substring(0, index))}<span style="color: #ccc">${escape(text.substring(index - 1))}</span></div>`;
+        return `<div>${escape(text.substring(0, index))}<span class="table-label-meta">${escape(text.substring(index - 1))}</span></div>`;
     }
     return `<div>${escape(text)}</div>`;
 }

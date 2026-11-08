@@ -126,8 +126,21 @@
 }
 
 [data-bs-theme="dark"] .ts-dropdown .active {
-    background-color: #0d6efd !important;
+    background-color: var(--app-brand-1) !important;
     color: #fff !important;
+}
+
+/* Tom Select uses --bs-tertiary-bg (#f8f9fa) here, which barely differs from
+   the white dropdown; use a slightly darker grey so the hovered row shows. */
+[data-bs-theme="light"] .ts-dropdown .active {
+    background-color: #dee2e6;
+}
+
+/* The "(3 rows, view)" part of a table label: dim it relative to whatever
+   colour the row is (dark on the light highlight, white on the dark navy one)
+   instead of a fixed grey that vanishes on the highlighted row. */
+.table-label-meta {
+    opacity: 0.7;
 }
 
 [data-bs-theme="dark"] .ts-control > input {
