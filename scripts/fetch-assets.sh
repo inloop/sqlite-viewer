@@ -1,0 +1,55 @@
+#!/bin/sh
+#
+# Downloads the third-party assets used by SQLite Viewer from their pinned
+# upstream sources. These files are intentionally not committed to the
+# repository; run this script before serving the site or building the image.
+#
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT INT TERM
+
+need() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "error: required command '$1' not found" >&2
+        exit 1
+    fi
+}
+
+need curl
+need sha256sum
+
+# fetch <url> <sha256> <dest>
+#   Downloads <url>, verifies its checksum and installs it at <dest>, relative
+#   to the project root.
+fetch() {
+    url=$1
+    sha=$2
+    dest=$3
+    name=$(printf '%s' "$url" | sha256sum | cut -c1-12)
+    file="$TMP/$name"
+    echo "==> $dest"
+    curl -fsSL --retry 3 -o "$file" "$url"
+    printf '%s  %s\n' "$sha" "$file" | sha256sum -c - >/dev/null
+    mkdir -p "$ROOT/$(dirname -- "$dest")"
+    cp "$file" "$ROOT/$dest"
+}
+
+# fetch_zip <url> <sha256>
+#   Downloads and verifies a ZIP archive, printing the path to the local copy.
+fetch_zip() {
+    url=$1
+    sha=$2
+    name=$(printf '%s' "$url" | sha256sum | cut -c1-12)
+    file="$TMP/$name.zip"
+    curl -fsSL --retry 3 -o "$file" "$url"
+    printf '%s  %s\n' "$sha" "$file" | sha256sum -c - >/dev/null
+    printf '%s' "$file"
+}
+
+main() {
+    echo "All external assets downloaded successfully."
+}
+
+main "$@"

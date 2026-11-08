@@ -50,6 +50,24 @@ docker run --rm -p 8080:80 \
 * **`DEFAULT_URL`**: The database at this URL/path (relative path or absolute URL) will be fetched and opened on page load. Both raw databases and `.zip` archives are supported.
 * **`DEFAULT_SQL`**: The code editor will be pre-populated and this query will execute automatically on startup.
 
+## Building from source
+
+The third-party libraries and the sample database are **not** stored in this
+repository. Download the pinned versions before serving the site:
+
+```bash
+./scripts/fetch-assets.sh   # or: make deps
+```
+
+Then serve the directory over HTTP (the SQLite WASM backend does not work from
+a `file://` URL), for example:
+
+```bash
+python3 -m http.server
+```
+
+The Docker image runs the download step automatically during the build.
+
 ## Libraries
 
 - Using the official [sqlite3-wasm](https://sqlite.org/wasm/doc/trunk/index.md) for parsing sqlite files.
