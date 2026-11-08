@@ -100,6 +100,17 @@ filesaver() {
         "js/FileSaver.min.js"
 }
 
+codejar() {
+    fetch "https://cdn.jsdelivr.net/npm/codejar@4.3.0/dist/codejar.js" \
+        "faccc44189de38c2e36288749e2c4db73d7c3a4322ea3c42704388fccd82f96e" \
+        "js/codejar.js"
+    # codejar ships as an ES module; expose it as a global for classic scripts.
+    sed 's/^export function CodeJar/function CodeJar/' "$ROOT/js/codejar.js" \
+        > "$ROOT/js/codejar.js.tmp"
+    printf 'window.CodeJar = CodeJar;\n' >> "$ROOT/js/codejar.js.tmp"
+    mv "$ROOT/js/codejar.js.tmp" "$ROOT/js/codejar.js"
+}
+
 main() {
     bootstrap
     jquery
@@ -108,6 +119,7 @@ main() {
     prism
     jszip
     filesaver
+    codejar
     echo "All external assets downloaded successfully."
 }
 
