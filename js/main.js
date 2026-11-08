@@ -711,11 +711,12 @@ function renderBlobItem(tr, bytes) {
     const span = document.createElement("span");
     span.title = "Blob";
     const downloadLink = document.createElement("a");
-    downloadLink.href = "javascript:void(0)";
-    downloadLink.innerText = `Download (${formatBytes(bytes.length)})`;
-    downloadLink.onclick = function () {
+    downloadLink.href = "#";
+    downloadLink.textContent = `Download (${formatBytes(bytes.length)})`;
+    downloadLink.addEventListener("click", (event) => {
+        event.preventDefault();
         saveAs(new Blob([bytes]), "blob");
-    };
+    });
     span.append(downloadLink);
     td.append(span);
     tr.append(td);
@@ -879,13 +880,23 @@ function deleteHistoryItem(index) {
     renderQueryHistory();
 }
 
-function copyQueryToClipboard(sql) {
+async function copyQueryToClipboard(sql) {
+    if (window.isSecureContext && navigator.clipboard) {
+        try {
+            await navigator.clipboard.writeText(sql);
+            return;
+        } catch (e) {
+            console.error("Clipboard API copy failed, falling back:", e);
+        }
+    }
+
+    // Fallback for insecure contexts: a temporary textarea inside the
+    // offcanvas (to stay within Bootstrap's focus trap) plus execCommand.
     const ta = document.createElement("textarea");
     ta.value = sql;
     ta.style.position = "fixed";
     ta.style.left = "-9999px";
     ta.style.opacity = "0";
-    // Append inside the offcanvas to stay within Bootstrap's focus trap
     const container = document.getElementById("history-sidebar") || document.body;
     container.appendChild(ta);
     ta.focus();
