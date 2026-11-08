@@ -96,6 +96,16 @@ const infoBox = $("#info");
 let hashParams = new URLSearchParams(window.location.hash.substring(1));
 const appConfig = window.APP_CONFIG || {};
 
+// Percent-encode a hash component, but leave the characters that
+// URLSearchParams already reads back literally (/, :, ,, ;, @, $, ?, !, ',
+// (, ), *, ~) unescaped so the URL stays readable. Space, +, %, &, = and #
+// stay encoded so the hash still round-trips.
+function encodeHashComponent(text) {
+    return encodeURIComponent(text)
+        .replace(/%20/g, "+")
+        .replace(/%(2F|3A|2C|3B|40|24|3F)/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 // Set (or, with a null value, remove) a hash parameter and sync the URL.
 // replaceState (rather than assigning location.hash) keeps this from firing a
 // hashchange we would otherwise have to ignore.
@@ -106,7 +116,10 @@ function setHashParam(key, value) {
     } else {
         hashParams.set(key, value);
     }
-    history.replaceState(null, null, `#${hashParams.toString()}`);
+    const hash = Array.from(hashParams)
+        .map(([name, val]) => `${encodeHashComponent(name)}=${encodeHashComponent(val)}`)
+        .join("&");
+    history.replaceState(null, null, `#${hash}`);
 }
 
 // Resolve a #url value to an absolute URL and its database/history key.
