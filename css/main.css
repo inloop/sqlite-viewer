@@ -1,5 +1,28 @@
 /* Theme colors follow <html data-bs-theme>, which the inline head script in
    index.html sets to "light" or "dark" from prefers-color-scheme. */
+
+/* Brand blue: a touch darker and less grey than the old #1b4f8a. The header
+   and the primary button share it (with a slight gradient) in both themes. */
+:root {
+    --app-brand-1: #0e4b98;
+    --app-brand-2: #093f80;
+    --app-brand-hover-1: #1257ad;
+    --app-brand-hover-2: #0c4a94;
+    --app-brand-active-1: #083a77;
+    --app-brand-active-2: #062f60;
+    --app-brand-rgb: 11, 68, 142;
+    --bs-primary: #0b448e;
+    --bs-primary-rgb: 11, 68, 142;
+}
+
+[data-bs-theme="dark"] {
+    /* The header and button keep the same brand navy as light mode; only the
+       accent (drop-zone focus) is brighter, so it stays visible on the dark
+       page. */
+    --bs-primary: #1e6cd2;
+    --bs-primary-rgb: 30, 108, 210;
+}
+
 [data-bs-theme="light"] body {
     background: #f5f5f5;
 }
@@ -8,9 +31,9 @@
     background-color: lightblue;
 }
 
-/* Dark header bar with light text in both themes; a touch lighter in light mode. */
+/* Navy header bar with white text; identical in both themes. */
 [data-bs-theme="light"] #header {
-    background: #1b4f8a;
+    background: linear-gradient(180deg, var(--app-brand-1), var(--app-brand-2));
     color: #fff;
 }
 
@@ -36,8 +59,43 @@
 }
 
 [data-bs-theme="dark"] #header {
-    background: #0d3b66;
-    color: #7ab5e6;
+    background: linear-gradient(180deg, var(--app-brand-1), var(--app-brand-2));
+    color: #fff;
+}
+
+/* Primary button: same brand as the header. Bootstrap bakes a literal #0d6efd
+   into .btn-primary, so override its variables; the gradient has to be
+   re-supplied on hover/active or background-color alone would be hidden. */
+.btn-primary {
+    --bs-btn-bg: var(--app-brand-2);
+    --bs-btn-border-color: var(--app-brand-2);
+    --bs-btn-hover-bg: var(--app-brand-hover-2);
+    --bs-btn-hover-border-color: var(--app-brand-hover-2);
+    --bs-btn-active-bg: var(--app-brand-active-2);
+    --bs-btn-active-border-color: var(--app-brand-active-2);
+    --bs-btn-disabled-bg: var(--app-brand-2);
+    --bs-btn-disabled-border-color: var(--app-brand-2);
+    --bs-btn-focus-shadow-rgb: var(--app-brand-rgb);
+    background-image: linear-gradient(180deg, var(--app-brand-1), var(--app-brand-2));
+}
+
+.btn-primary:hover {
+    background-image: linear-gradient(180deg, var(--app-brand-hover-1), var(--app-brand-hover-2));
+}
+
+.btn-primary:active,
+.btn-primary.active {
+    background-image: linear-gradient(180deg, var(--app-brand-active-1), var(--app-brand-active-2));
+}
+
+/* A button the same colour as the dark header is only ~1.2:1 against the page,
+   so keep a lighter border on it for a visible edge. */
+[data-bs-theme="dark"] .btn-primary {
+    --bs-btn-border-color: #3f82c9;
+    --bs-btn-hover-border-color: #4a8fd6;
+    --bs-btn-active-border-color: #3577bf;
+    --bs-btn-disabled-border-color: #3f82c9;
+    --bs-btn-focus-shadow-rgb: 110, 168, 254;
 }
 
 [data-bs-theme="dark"] .table-hover tbody tr:hover td,
