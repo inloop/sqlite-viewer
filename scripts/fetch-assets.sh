@@ -20,6 +20,33 @@ need() {
 need curl
 need sha256sum
 
+# Be resilient to flaky upstream mirrors (e.g. sqlite.org occasionally 504s).
+CURL_OPTS="--fail --silent --show-error --location \
+    --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30"
+
+# download <sha256> <url> [mirror-url ...]
+#   Tries each URL in order until one downloads and matches <sha256>, printing
+#   the path to the local copy (which keeps the upstream file name).
+download() {
+    sha=$1
+    shift
+    for url in "$@"; do
+        name=$(printf '%s' "$url" | sha256sum | cut -c1-12)
+        dir="$TMP/$name"
+        file="$dir/$(basename -- "$url")"
+        mkdir -p "$dir"
+        if curl $CURL_OPTS -o "$file" "$url" &&
+            printf '%s  %s\n' "$sha" "$file" | sha256sum -c - >/dev/null; then
+            printf '%s' "$file"
+            return 0
+        fi
+        rm -rf "$dir"
+        echo "warning: failed to fetch $url, trying next source" >&2
+    done
+    echo "error: could not download any of: $*" >&2
+    return 1
+}
+
 # fetch <url> <sha256> <dest>
 #   Downloads <url>, verifies its checksum and installs it at <dest>, relative
 #   to the project root.
@@ -27,40 +54,10 @@ fetch() {
     url=$1
     sha=$2
     dest=$3
-    name=$(printf '%s' "$url" | sha256sum | cut -c1-12)
-    file="$TMP/$name"
     echo "==> $dest"
-    curl -fsSL --retry 3 -o "$file" "$url"
-    printf '%s  %s\n' "$sha" "$file" | sha256sum -c - >/dev/null
+    file=$(download "$sha" "$url")
     mkdir -p "$ROOT/$(dirname -- "$dest")"
     cp "$file" "$ROOT/$dest"
-}
-
-# fetch_zip <url> <sha256>
-#   Downloads and verifies a ZIP archive, printing the path to the local copy.
-fetch_zip() {
-    url=$1
-    sha=$2
-    name=$(printf '%s' "$url" | sha256sum | cut -c1-12)
-    file="$TMP/$name.zip"
-    curl -fsSL --retry 3 -o "$file" "$url"
-    printf '%s  %s\n' "$sha" "$file" | sha256sum -c - >/dev/null
-    printf '%s' "$file"
-}
-
-# download <url> <sha256>
-#   Downloads and verifies a file, printing the path to the local copy. The
-#   copy keeps the original file name so archives can reference it.
-download() {
-    url=$1
-    sha=$2
-    name=$(printf '%s' "$url" | sha256sum | cut -c1-12)
-    dir="$TMP/$name"
-    file="$dir/$(basename -- "$url")"
-    mkdir -p "$dir"
-    curl -fsSL --retry 3 -o "$file" "$url"
-    printf '%s  %s\n' "$sha" "$file" | sha256sum -c - >/dev/null
-    printf '%s' "$file"
 }
 
 bootstrap() {
@@ -129,8 +126,11 @@ codejar() {
 sqlite_wasm() {
     need unzip
     release=sqlite-wasm-3540100
-    zip=$(fetch_zip "https://sqlite.org/2026/$release.zip" \
-        "85ebce90b6d189442b29e11d193337b5e63203aae9b6590dbe89a601b9891da2")
+    # sqlite.org is frequently overloaded; fall back to its official mirrors.
+    zip=$(download "85ebce90b6d189442b29e11d193337b5e63203aae9b6590dbe89a601b9891da2" \
+        "https://sqlite.org/2026/$release.zip" \
+        "https://www2.sqlite.org/2026/$release.zip" \
+        "https://www3.sqlite.org/2026/$release.zip")
     rm -rf "$TMP/$release"
     unzip -qo "$zip" -d "$TMP"
     mkdir -p "$ROOT/js"
@@ -143,8 +143,8 @@ sqlite_wasm() {
 chinook() {
     need zip
     # Ship the sample database as a ZIP so the ZIP import path stays exercised.
-    src=$(download "https://github.com/lerocha/chinook-database/releases/download/v1.4.5/Chinook_Sqlite.sqlite" \
-        "bdf635be69850bd3be09c9a2dbeef7ddfb80036bd3ef3381383cd03b61e4a61a")
+    src=$(download "bdf635be69850bd3be09c9a2dbeef7ddfb80036bd3ef3381383cd03b61e4a61a" \
+        "https://github.com/lerocha/chinook-database/releases/download/v1.4.5/Chinook_Sqlite.sqlite")
     mkdir -p "$ROOT/examples"
     echo "==> examples/Chinook_Sqlite.zip"
     rm -f "$ROOT/examples/Chinook_Sqlite.zip"
