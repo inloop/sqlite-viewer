@@ -878,29 +878,29 @@ function renderQueryHistory() {
     }
 
     historyList.forEach((item, index) => {
-        const dateStr = new Date(item.timestamp).toLocaleString();
-        
-        // Escape SQL for safe HTML rendering
-        const escapedSql = item.sql
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
+        const sql = item.sql;
 
-        const card = $(`
-            <div class="card shadow-sm border-0 border-start border-3 border-primary query-card">
-                <div class="card-body p-2 d-flex flex-column gap-1">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-secondary font-monospace" style="font-size: 0.75rem">${dateStr}</small>
-                        <button class="btn btn-link p-0 text-danger text-decoration-none" style="font-size: 0.85rem" onclick="deleteHistoryItem(${index})">Delete</button>
-                    </div>
-                    <pre class="p-2 mb-1 overflow-x-auto" onclick="loadQueryFromHistory(decodeURIComponent('${encodeURIComponent(item.sql)}'))">${escapedSql}</pre>
-                    <div class="d-flex gap-2 mt-1">
-                        <button class="btn btn-sm btn-light py-0 px-2" onclick="loadQueryFromHistory(decodeURIComponent('${encodeURIComponent(item.sql)}'))">Run</button>
-                        <button class="btn btn-sm btn-light py-0 px-2" onclick="copyQueryToClipboard(decodeURIComponent('${encodeURIComponent(item.sql)}'))">Copy</button>
-                    </div>
-                </div>
-            </div>
-        `);
+        const header = $("<div>").addClass("d-flex justify-content-between align-items-center").append(
+            $("<small>").addClass("text-secondary font-monospace").css("font-size", "0.75rem")
+                .text(new Date(item.timestamp).toLocaleString()),
+            $("<button>").addClass("btn btn-link p-0 text-danger text-decoration-none").css("font-size", "0.85rem")
+                .text("Delete").on("click", () => deleteHistoryItem(index))
+        );
+
+        const card = $("<div>").addClass("card shadow-sm border-0 border-start border-3 border-primary query-card").append(
+            $("<div>").addClass("card-body p-2 d-flex flex-column gap-1").append(
+                header,
+                $("<pre>").addClass("p-2 mb-1 overflow-x-auto").text(sql)
+                    .on("click", () => loadQueryFromHistory(sql)),
+                $("<div>").addClass("d-flex gap-2 mt-1").append(
+                    $("<button>").addClass("btn btn-sm btn-light py-0 px-2").text("Run")
+                        .on("click", () => loadQueryFromHistory(sql)),
+                    $("<button>").addClass("btn btn-sm btn-light py-0 px-2").text("Copy")
+                        .on("click", () => copyQueryToClipboard(sql))
+                )
+            )
+        );
+
         historyListContainer.append(card);
     });
 }
