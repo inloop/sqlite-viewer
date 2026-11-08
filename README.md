@@ -20,6 +20,23 @@ and prefill a SQL query using hash parameters:
 
 Try [this live example](https://neuhaus.github.io/sqlite-viewer/#url=https%3A%2F%2Fraw.githubusercontent.com%2Flerocha%2Fchinook-database%2Fv1.4.5%2FChinookDatabase%2FDataSources%2FChinook_Sqlite.sqlite&sql=SELECT+%0A++++Album.AlbumId%2C%0A++++Album.Title+AS+AlbumTitle%2C%0A++++Track.TrackId%2C%0A++++Track.Name+AS+TrackName%0AFROM+Album%0AJOIN+Track+ON+Album.AlbumId+%3D+Track.AlbumId%0AORDER+BY+Album.AlbumId%2C+TrackId%0ALIMIT+0%2C40%3B+)!
 
+## Building from source
+
+There is no build process. Just download the third-party libraries (they are 
+not stored here) as pinned versions directly from their sources:
+
+```bash
+./scripts/fetch-assets.sh   # or: make deps
+```
+
+(You may remove them again with `make clean-deps`).
+
+Serve the directory over HTTP (the SQLite WASM backend does not work from
+a `file://` URL), for example using `python3 -m http.server`.
+
+The Docker image and the GitHub Pages workflow
+(`.github/workflows/pages.yml`) run the download step automatically.
+
 ## Docker
 
 You can run and configure the SQLite Viewer inside a lightweight production container using Docker.
@@ -49,23 +66,6 @@ docker run --rm -p 8080:80 \
 ```
 * **`DEFAULT_URL`**: The database at this URL/path (relative path or absolute URL) will be fetched and opened on page load. Both raw databases and `.zip` archives are supported.
 * **`DEFAULT_SQL`**: The code editor will be pre-populated and this query will execute automatically on startup.
-
-## Building from source
-
-There is no built process. You just have to download the third-party librarie
-(they are not stored here) as pinned versions directly from their sources:
-
-```bash
-./scripts/fetch-assets.sh   # or: make deps
-```
-
-Remove the downloaded files again with `make clean-deps`.
-
-Then serve the directory over HTTP (the SQLite WASM backend does not work from
-a `file://` URL), for example using `python3 -m http.server`.
-
-The Docker image and the GitHub Pages workflow
-(`.github/workflows/pages.yml`) run the download step automatically.
 
 ## Libraries
 
