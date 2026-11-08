@@ -711,84 +711,100 @@ function renderTableLabel(data, escape) {
 }
 
 function headerCell(name, type) {
-    const label = $("<span>").attr("data-bs-toggle", "tooltip").attr("title", type).text(name);
-    return $("<th>").append(label);
+    const th = document.createElement("th");
+    const label = document.createElement("span");
+    label.dataset.bsToggle = "tooltip";
+    label.title = type;
+    label.textContent = name;
+    th.append(label);
+    return th;
 }
 
 function dataCell(value) {
-    const text = String(value);
-    return $("<td>").append($("<span>").attr("title", text).text(text));
+    const td = document.createElement("td");
+    td.title = String(value);
+    td.textContent = String(value);
+    return td;
 }
 
 function nullBlobCell() {
-    return $("<td>").append($("<span>").attr("title", "Blob").text("null"));
+    const td = document.createElement("td");
+    td.title = "Blob";
+    td.textContent = "null";
+    return td;
 }
 
-function tableRow() {
-    return $("<tr>");
+function blobCell(bytes) {
+    const td = document.createElement("td");
+    td.title = "Blob";
+    const downloadLink = document.createElement("a");
+    downloadLink.href = "#";
+    downloadLink.textContent = `Download (${formatBytes(bytes.length)})`;
+    downloadLink.addEventListener("click", (event) => {
+        event.preventDefault();
+        saveAs(new Blob([bytes]), "blob");
+    });
+    td.append(downloadLink);
+    return td;
 }
 
 async function renderQuery(query) {
-    const dataBox = $("#data");
-    const thead = dataBox.find("thead").find("tr");
-    const tbody = dataBox.find("tbody");
+    const theadRow = document.querySelector("#data thead tr");
+    const tbody = document.querySelector("#data tbody");
 
-    thead.empty();
-    tbody.empty();
     errorBox.hide();
     infoBox.hide();
-    dataBox.show();
+    $("#data").show();
 
-    let columnTypes = new Map();
     const tableName = getTableNameFromQuery(query);
-    if (tableName != null) {
-        columnTypes = await getTableColumnTypes(tableName);
-    }
 
+    // The column-type lookup and the data query are independent.
+    let columnTypes;
     let res;
     try {
-        res = await execSql(query);
+        [columnTypes, res] = await Promise.all([
+            tableName != null ? getTableColumnTypes(tableName) : Promise.resolve(new Map()),
+            execSql(query)
+        ]);
     } catch (ex) {
+        theadRow.replaceChildren();
+        tbody.replaceChildren();
         showError(ex.message || ex);
         return;
     }
 
-    let isEmptyTable = true;
-
     if (res) {
-        isEmptyTable = false;
         const columnNames = res.columns;
-        const values = res.values;
 
-        for (let i = 0; i < columnNames.length; i++) {
-            const columnName = columnNames[i];
+        // Build everything off-DOM and insert in one pass: appending each row
+        // to a live <tbody> would invalidate layout once per row.
+        const headerFragment = document.createDocumentFragment();
+        for (const columnName of columnNames) {
             const info = columnTypes.get(columnName);
             const headerType = info ? [info.type, info.constraints].filter(Boolean).join(" ") : "";
-            thead.append(headerCell(columnName, headerType));
+            headerFragment.append(headerCell(columnName, headerType));
         }
+        theadRow.replaceChildren(headerFragment);
 
-        for (let r = 0; r < values.length; r++) {
-            const tr = tableRow();
-            const rowValues = values[r];
+        const bodyFragment = document.createDocumentFragment();
+        for (const rowValues of res.values) {
+            const tr = document.createElement("tr");
             for (let i = 0; i < rowValues.length; i++) {
-                const columnName = columnNames[i];
-                const info = columnTypes.get(columnName);
+                const info = columnTypes.get(columnNames[i]);
                 const columnType = info ? info.type.toLowerCase() : "";
+                const value = rowValues[i];
                 if (columnType === "blob" || columnType === "blob sub_type binary") {
-                    if (rowValues[i] === null) {
-                        tr.append(nullBlobCell());
-                    } else {
-                        renderBlobItem(tr, rowValues[i]);
-                    }
+                    tr.append(value === null ? nullBlobCell() : blobCell(value));
                 } else {
-                    tr.append(dataCell(rowValues[i]));
+                    tr.append(dataCell(value));
                 }
             }
-            tbody.append(tr);
+            bodyFragment.append(tr);
         }
-    }
-
-    if (isEmptyTable) {
+        tbody.replaceChildren(bodyFragment);
+    } else {
+        theadRow.replaceChildren();
+        tbody.replaceChildren();
         infoBox.text("No data returned for the given query.");
         infoBox.show();
     }
@@ -797,22 +813,6 @@ async function renderQuery(query) {
 
     document.querySelectorAll('[data-bs-toggle="tooltip"]')
         .forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
-}
-
-function renderBlobItem(tr, bytes) {
-    const td = document.createElement("td");
-    const span = document.createElement("span");
-    span.title = "Blob";
-    const downloadLink = document.createElement("a");
-    downloadLink.href = "#";
-    downloadLink.textContent = `Download (${formatBytes(bytes.length)})`;
-    downloadLink.addEventListener("click", (event) => {
-        event.preventDefault();
-        saveAs(new Blob([bytes]), "blob");
-    });
-    span.append(downloadLink);
-    td.append(span);
-    tr.append(td);
 }
 
 function formatBytes(bytes,decimals) {
