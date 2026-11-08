@@ -70,8 +70,9 @@ bootstrap() {
 }
 
 tom_select() {
-    fetch "https://cdn.jsdelivr.net/npm/tom-select@2.7.0/dist/js/tom-select.complete.min.js" \
-        "5c1315fe8e62c7b9342cbf82c4d5454b83ab97d507a2e9803dbaef72433438bc" \
+    # Base build only: no Tom Select plugins are used.
+    fetch "https://cdn.jsdelivr.net/npm/tom-select@2.7.0/dist/js/tom-select.base.min.js" \
+        "f9acd424917076cca73b02fa87b5d857ed390fab0dd80ba2a863f6f9a6ccb0e1" \
         "js/tom-select.min.js"
     fetch "https://cdn.jsdelivr.net/npm/tom-select@2.7.0/dist/css/tom-select.bootstrap5.min.css" \
         "4b819a8a46757f55122d93bd7aa2d2018dba6a83466734c5c32322a2b4270353" \
