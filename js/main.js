@@ -54,6 +54,7 @@ let editor = null;
 const errorBox = $("#error");
 const infoBox = $("#info");
 const hashParams = new URLSearchParams(window.location.hash.substring(1));
+const appConfig = window.APP_CONFIG || {};
 
 // Set (or, with a null value, remove) a hash parameter and sync the URL.
 function setHashParam(key, value) {
@@ -117,8 +118,8 @@ function initialize() {
     const loadUrlDB = hashParams.get("url");
     if (loadUrlDB != null) {
         loadRemoteDB(loadUrlDB);
-    } else if (window.APP_CONFIG && window.APP_CONFIG.defaultUrl) {
-        loadRemoteDB(window.APP_CONFIG.defaultUrl);
+    } else if (appConfig.defaultUrl) {
+        loadRemoteDB(appConfig.defaultUrl);
     }
 }
 
@@ -157,7 +158,7 @@ async function loadDB(arrayBuffer) {
 
         const firstTableName = await populateTableList(true);
         const sqlParam = hashParams.get("sql");
-        const defaultSql = (window.APP_CONFIG && window.APP_CONFIG.defaultSql) ? window.APP_CONFIG.defaultSql : null;
+        const defaultSql = appConfig.defaultSql || null;
 
         if (sqlParam != null) {
             editor.updateCode(sqlParam);
