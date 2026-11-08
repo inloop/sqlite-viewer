@@ -10,15 +10,15 @@ You can also load remote files (using JS ajax, remote server must send `Access-C
 and prefill a SQL query using hash parameters:
 
 - To load a remote SQLite file upon page load, append<br>
-  `#url=examples/Chinook_Sqlite.zip` to the URL. Both absolute and relative URLs work. So do zipped files.
+  `#url=https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite` to the URL. Both absolute and relative URLs work. So do zipped files.
 - To prefill a SQL query, append<br>
   `#sql=SELECT%20*%20FROM%20table` to the URL.
 - To load a remote file *and* prefill a query at the same time: Append both like this:<br>
-  `#url=examples/Chinook_Sqlite.zip&sql=SELECT%20*%20FROM%20table`
+  `#url=https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite&sql=SELECT%20*%20FROM%20table`
 
 ![](/img/preview.png?raw=true "Screenshot")
 
-Try [this live example](https://neuhaus.github.io/sqlite-viewer/#url=examples%2FChinook_Sqlite.zip&sql=SELECT+%0A++++Album.AlbumId%2C%0A++++Album.Title+AS+AlbumTitle%2C%0A++++Track.TrackId%2C%0A++++Track.Name+AS+TrackName%0AFROM+Album%0AJOIN+Track+ON+Album.AlbumId+%3D+Track.AlbumId%0AORDER+BY+Album.AlbumId%2C+TrackId%0ALIMIT+0%2C40%3B+)!
+Try [this live example](https://neuhaus.github.io/sqlite-viewer/#url=https%3A%2F%2Fraw.githubusercontent.com%2Flerocha%2Fchinook-database%2Fv1.4.5%2FChinookDatabase%2FDataSources%2FChinook_Sqlite.sqlite&sql=SELECT+%0A++++Album.AlbumId%2C%0A++++Album.Title+AS+AlbumTitle%2C%0A++++Track.TrackId%2C%0A++++Track.Name+AS+TrackName%0AFROM+Album%0AJOIN+Track+ON+Album.AlbumId+%3D+Track.AlbumId%0AORDER+BY+Album.AlbumId%2C+TrackId%0ALIMIT+0%2C40%3B+)!
 
 ## Docker
 
@@ -34,7 +34,7 @@ docker build -t sqlite-viewer -f docker/Dockerfile .
 To mount your local database file or ZIP archive and have the application **automatically fetch and load it** on page load:
 ```bash
 docker run --rm -p 8080:80 \
-  -v "${PWD}/examples/Chinook_Sqlite.zip:/var/www/data.zip" \
+  -v "${PWD}/your-database.sqlite:/var/www/data.sqlite" \
   sqlite-viewer
 ```
 *Note: Navigate to `http://localhost:8080` in your browser. The database tables will load instantly with zero user interaction.*
@@ -43,7 +43,7 @@ docker run --rm -p 8080:80 \
 You can specify a custom database URL and auto-execute a default SQL query on startup using environment variables:
 ```bash
 docker run --rm -p 8080:80 \
-  -e DEFAULT_URL="examples/Chinook_Sqlite.zip" \
+  -e DEFAULT_URL="https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite" \
   -e DEFAULT_SQL="SELECT name, type FROM sqlite_master WHERE type='table' ORDER BY name;" \
   sqlite-viewer
 ```
@@ -52,8 +52,8 @@ docker run --rm -p 8080:80 \
 
 ## Building from source
 
-The third-party libraries and the sample database are **not** stored in this
-repository. Download the pinned versions before serving the site:
+The third-party libraries are **not** stored in this repository. Download the
+pinned versions before serving the site:
 
 ```bash
 ./scripts/fetch-assets.sh   # or: make deps

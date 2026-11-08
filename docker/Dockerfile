@@ -1,7 +1,7 @@
 FROM nginx:alpine
 
 # Tools needed to download the pinned third-party assets
-RUN apk add --no-cache curl unzip zip
+RUN apk add --no-cache curl unzip
 
 # 1. Copy all static viewer files to the default Nginx root
 COPY . /usr/share/nginx/html
@@ -13,7 +13,6 @@ RUN /usr/share/nginx/html/scripts/fetch-assets.sh
 RUN rm -rf /usr/share/nginx/html/docker \
            /usr/share/nginx/html/scripts \
            /usr/share/nginx/html/Makefile \
-           /usr/share/nginx/html/examples \
            /usr/share/nginx/html/.dockerignore \
            /usr/share/nginx/html/.gitignore
 

@@ -20,4 +20,3 @@ node_modules/
 /js/codejar.js
 /js/sqlite3.js
 /js/sqlite3.wasm
-/examples/Chinook_Sqlite.zip
