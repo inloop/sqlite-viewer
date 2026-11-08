@@ -55,6 +55,7 @@ let lastCachedQueryCount = { select: "", count: 0 };
 let loadedTableNames = [];
 let currentDbKey = "default";
 let editor = null;
+let tableSelect = null;
 const errorBox = $("#error");
 const infoBox = $("#info");
 const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -71,20 +72,6 @@ function setHashParam(key, value) {
     history.replaceState(null, null, `#${hashParams.toString()}`);
 }
 
-const selectFormatter = function (item) {
-    const index = item.text.indexOf("(");
-    if (index > -1) {
-        const name = item.text.substring(0, index);
-        const tableName = item.text.substring(index - 1);
-        const span = $("<span>");
-        span.append(document.createTextNode(name));
-        span.append($("<span>").css("color", "#ccc").text(tableName));
-        return span;
-    } else {
-        return item.text;
-    }
-};
-
 initialize();
 
 function initialize() {
@@ -100,15 +87,13 @@ function initialize() {
     $("#resizer").click(toggleFullScreen);
     $("#sql-editor").keydown(onKeyDown);
 
-    const tables = $("#tables");
-    tables.select2({
+    tableSelect = new TomSelect("#tables", {
         placeholder: "Select a table",
-        theme: "bootstrap-5",
-        templateSelection: selectFormatter,
-        templateResult: selectFormatter
-    });
-    tables.on("change", async function () {
-        await doDefaultSelect(tables.val());
+        maxItems: 1,
+        render: { option: renderTableLabel, item: renderTableLabel },
+        onChange: (value) => {
+            if (value) doDefaultSelect(value);
+        }
     });
 
     if (typeof FileReader === "undefined" || typeof WebAssembly === "undefined") {
@@ -201,13 +186,12 @@ async function loadDB(arrayBuffer) {
 }
 
 async function populateTableList(selectFirst = false) {
-    const tableList = $("#tables");
-    const currentSelected = tableList.val();
+    const currentSelected = tableSelect.getValue();
 
     // Reset table name cache
     loadedTableNames = [];
-    tableList.empty();
-    tableList.append(emptyOption());
+    tableSelect.clear(true);
+    tableSelect.clearOptions(() => false);
 
     try {
         const res = await execSql("SELECT name, type FROM sqlite_master WHERE type='table' OR type='view' ORDER BY name");
@@ -222,18 +206,18 @@ async function populateTableList(selectFirst = false) {
 
                 const rowCount = await getTableRowsCount(name);
                 loadedTableNames.push(name);
-                tableList.append(tableOption(name, rowCount, type));
+                tableSelect.addOption({ value: name, text: tableLabel(name, rowCount, type) });
             }
         }
 
         if (selectFirst && firstTableName !== null) {
-            tableList.val(firstTableName).trigger("change.select2");
+            tableSelect.setValue(firstTableName, true);
             return firstTableName;
         } else if (currentSelected && loadedTableNames.includes(currentSelected)) {
-            tableList.val(currentSelected).trigger("change.select2");
+            tableSelect.setValue(currentSelected, true);
             return currentSelected;
         } else {
-            tableList.val(null).trigger("change.select2");
+            tableSelect.clear(true);
             return null;
         }
     } catch (e) {
@@ -312,9 +296,8 @@ async function getTableColumnTypes(tableName) {
 
 function resetTableList() {
     loadedTableNames = [];
-    const tables = $("#tables");
-    tables.empty();
-    tables.append(emptyOption());
+    tableSelect.clear(true);
+    tableSelect.clearOptions(() => false);
 }
 
 function setIsLoading(isLoading) {
@@ -454,7 +437,12 @@ async function executeSql() {
         lastCachedQueryCount = { select: "", count: 0 };
         await populateTableList();
     } else {
-        $("#tables").val(getTableNameFromQuery(query)).trigger("change.select2");
+        const tableName = getTableNameFromQuery(query);
+        if (tableName && loadedTableNames.includes(tableName)) {
+            tableSelect.setValue(tableName, true);
+        } else {
+            tableSelect.clear(true);
+        }
     }
 
     setHashParam("sql", query);
@@ -577,13 +565,18 @@ function setPagerVisible(visible) {
 }
 
 // --- View builders ---
-function emptyOption() {
-    return $("<option></option>");
+function tableLabel(name, rowCount, type) {
+    const tableType = type !== "table" ? `, ${type}` : "";
+    return `${name} (${rowCount} rows${tableType})`;
 }
 
-function tableOption(name, rowCount, type) {
-    const tableType = type !== "table" ? `, ${type}` : "";
-    return $("<option>").val(name).text(`${name} (${rowCount} rows${tableType})`);
+function renderTableLabel(data, escape) {
+    const text = data.text ?? "";
+    const index = text.indexOf("(");
+    if (index > -1) {
+        return `<div>${escape(text.substring(0, index))}<span style="color: #ccc">${escape(text.substring(index - 1))}</span></div>`;
+    }
+    return `<div>${escape(text)}</div>`;
 }
 
 function headerCell(name, type) {

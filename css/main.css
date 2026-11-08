@@ -51,23 +51,24 @@
     .token.operator { color: #ff7b72; }
     .token.comment { color: #8b949e; }
 
-    .select2-container--bootstrap-5 .select2-selection {
+    .ts-wrapper.form-select .ts-control {
         background-color: #212529 !important;
         border-color: #495057 !important;
         color: #fff !important;
     }
 
-    .select2-container--bootstrap-5 .select2-dropdown {
+    .ts-dropdown,
+    .ts-dropdown.form-select {
         background-color: #212529 !important;
         border-color: #495057 !important;
     }
 
-    .select2-container--bootstrap-5 .select2-results__option--highlighted[aria-selected] {
+    .ts-dropdown .active {
         background-color: #0d6efd !important;
+        color: #fff !important;
     }
 
-    .select2-container--bootstrap-5 .select2-search__field {
-        background-color: #212529 !important;
+    .ts-control > input {
         color: #fff !important;
     }
 }

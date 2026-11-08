@@ -84,21 +84,6 @@ tom_select() {
         "css/tom-select.bootstrap5.min.css"
 }
 
-select2() {
-    fetch "https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css" \
-        "5d5e14d587308b5d1ad79f51e9aea2f8f469b0a02b335f559f5a4bb756b81737" \
-        "css/select2.min.css"
-    fetch "https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js" \
-        "15692c266649fbc8acb4ebfb345e7e9499486d9551148241a235c9d62eea2f55" \
-        "js/select2.min.js"
-}
-
-select2_bootstrap_theme() {
-    fetch "https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" \
-        "5cb35411fccf18705e4ad112d836cb514459ddeefddc169b970cc99588fa5b64" \
-        "css/select2-bootstrap-5-theme.min.css"
-}
-
 prism() {
     # Prism core plus the SQL grammar it highlights.
     fetch "https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-core.min.js" \
@@ -153,8 +138,6 @@ main() {
     bootstrap
     jquery
     tom_select
-    select2
-    select2_bootstrap_theme
     prism
     jszip
     filesaver

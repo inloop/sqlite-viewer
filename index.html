@@ -8,8 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SQLite Viewer</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
-    <link href="css/select2.min.css" rel="stylesheet">
-    <link href="css/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+    <link href="css/tom-select.bootstrap5.min.css" rel="stylesheet">
     <link href="css/main.css" rel="stylesheet">
 
     <link rel="icon" type="image/png" href="img/icon.png"/>
@@ -188,31 +187,7 @@
 <input type="file" id="dropzone-dialog" style="opacity: 0;display:none">
 
 <script src="js/jquery-4.0.0.slim.min.js"></script>
-<script>
-    // jQuery 4.0 compatibility shims for older plugins (like Select2)
-    if (typeof jQuery !== 'undefined') {
-        if (!jQuery.isArray) jQuery.isArray = Array.isArray;
-        if (!jQuery.trim) {
-            jQuery.trim = function(str) {
-                return str == null ? "" : String(str).trim();
-            };
-        }
-        if (!jQuery.isFunction) {
-            jQuery.isFunction = function(obj) {
-                return typeof obj === "function";
-            };
-        }
-        if (!jQuery.isWindow) {
-            jQuery.isWindow = function(obj) {
-                return obj != null && obj === obj.window;
-            };
-        }
-        if (!jQuery.now) {
-            jQuery.now = Date.now;
-        }
-    }
-</script>
-<script src="js/select2.min.js"></script>
+<script src="js/tom-select.min.js"></script>
 <script src="js/prism.js"></script>
 <script src="js/prism-sql.min.js"></script>
 <script src="js/codejar.js"></script>
