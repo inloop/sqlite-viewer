@@ -91,17 +91,19 @@ function setHashParam(key, value) {
 initialize();
 
 function initialize() {
-    let toggleFullScreen = function () {
-        const container = $("#main-container");
-        const resizerExpandIcon = $("#resizer-expand");
-        const resizerCollapseIcon = $("#resizer-collapse");
+    bindUiEvents();
+    initTableSelect();
+    initEditor();
+    initDatabase();
+}
 
-        container.toggleClass("container container-fluid");
-        resizerExpandIcon.toggle();
-        resizerCollapseIcon.toggle();
-    };
-    $("#resizer").click(toggleFullScreen);
-    $("#sql-editor").keydown(onKeyDown);
+function bindUiEvents() {
+    $("#resizer").on("click", () => {
+        $("#main-container").toggleClass("container container-fluid");
+        $("#resizer-expand").toggle();
+        $("#resizer-collapse").toggle();
+    });
+    $("#sql-editor").on("keydown", onKeyDown);
 
     $("#dropzone").on("click", dropzoneClick);
     $("#sql-run").on("click", executeSql);
@@ -131,6 +133,11 @@ function initialize() {
     $("#clear-active-history").on("click", clearQueryHistory);
     $("#clear-all-history").on("click", clearAllDatabasesHistory);
 
+    // Links inside the dropzone must not trigger its click handler.
+    $(".no-propagate").on("click", (event) => event.stopPropagation());
+}
+
+function initTableSelect() {
     tableSelect = new TomSelect("#tables", {
         placeholder: "Select a table",
         maxItems: 1,
@@ -139,25 +146,23 @@ function initialize() {
             if (value) doDefaultSelect(value);
         }
     });
+}
 
+function initEditor() {
+    const editorElement = document.getElementById("sql-editor");
+    editorElement.classList.add("language-sql");
+    editor = CodeJar(editorElement, (el) => Prism.highlightElement(el));
+}
+
+function initDatabase() {
     if (typeof FileReader === "undefined" || typeof WebAssembly === "undefined") {
         $("#dropzone, #dropzone-dialog").hide();
         $("#compat-error").toggleClass("d-none", false);
-    } else {
-        initWorker();
-        setupDragAndDrop();
+        return;
     }
 
-    //Initialize editor
-    const editorElement = document.getElementById("sql-editor");
-    editorElement.classList.add("language-sql");
-    editor = CodeJar(editorElement, (el) => {
-        Prism.highlightElement(el);
-    });
-
-    $(".no-propagate").on("click", function (event) {
-        event.stopPropagation();
-    });
+    initWorker();
+    setupDragAndDrop();
 
     const loadUrlDB = hashParams.get("url");
     if (loadUrlDB != null) {
