@@ -3,20 +3,21 @@ SQLite Viewer
 
 *View SQLite file online directly in your browser.*
 
-The database will be loaded into your memory and changes will not affect the file you loaded it from. You can
-however export the database after making changes.
+![](/img/preview.png?raw=true "Screenshot")
+
+A fully functional sqlite database will be loaded into your memory and changes 
+will not affect the file you loaded it from. You can however export the 
+database after making changes.
 
 You can also load remote files (using JS ajax, remote server must send `Access-Control-Allow-Origin:*`) 
 and prefill a SQL query using hash parameters:
 
 - To load a remote SQLite file upon page load, append<br>
-  `#url=https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite` to the URL. Both absolute and relative URLs work. So do zipped files.
+  `#url=https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite` to the URL. Both absolute and relative URLs work, so do zipped files.
 - To prefill a SQL query, append<br>
-  `#sql=SELECT%20*%20FROM%20table` to the URL.
+  `#sql=SELECT+*+FROM+table` to the URL.
 - To load a remote file *and* prefill a query at the same time: Append both like this:<br>
   `#url=/sampledb.zip&sql=SELECT+*+FROM+table`
-
-![](/img/preview.png?raw=true "Screenshot")
 
 Try [this live example](https://neuhaus.github.io/sqlite-viewer/#url=https%3A%2F%2Fraw.githubusercontent.com%2Flerocha%2Fchinook-database%2Fv1.4.5%2FChinookDatabase%2FDataSources%2FChinook_Sqlite.sqlite&sql=SELECT+%0A++++Album.AlbumId%2C%0A++++Album.Title+AS+AlbumTitle%2C%0A++++Track.TrackId%2C%0A++++Track.Name+AS+TrackName%0AFROM+Album%0AJOIN+Track+ON+Album.AlbumId+%3D+Track.AlbumId%0AORDER+BY+Album.AlbumId%2C+TrackId%0ALIMIT+0%2C40%3B+)!
 
