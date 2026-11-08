@@ -21,12 +21,12 @@
 </head>
 <body>
 
-<div id="main-container" class="container shadow">
+<main id="main-container" class="container shadow">
     <header id="header" class="row align-items-center p-4">
         <img src="img/logo.svg" width="54" height="54" class="col-auto p-0" alt="Database logo"/>
 
         <div class="col">
-            <h4 class="mb-0">SQLite Viewer</h4>
+            <h1 class="h4 mb-0">SQLite Viewer</h1>
             <p class="mb-0">view sqlite file online</p>
         </div>
 
@@ -57,6 +57,7 @@
     </div>
 
     <div class="row text-center p-3 align-items-stretch" id="dropzone">
+        <input type="file" id="dropzone-dialog" class="visually-hidden" aria-label="Load a SQLite database file">
         <div class="d-flex border border-info-subtle rounded-1 align-items-center justify-content-center">
             <div id="drop-text">
                 <b>Drop file here</b> to load content or click on this box to open file dialog.<br/>
@@ -78,7 +79,7 @@
 
     <div id="output-box" class="container-fluid">
         <div class="input-group">
-            <select id="tables" class="form-select" title="Table"></select>
+            <select id="tables" class="form-select" aria-label="Table"></select>
 
             <div class="dropdown ms-2">
                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenu1"
@@ -94,7 +95,7 @@
         </div>
 
         <div class="d-flex mt-3 mb-3">
-            <div id="sql-editor" class="form-control form-control-lg col me-2"></div>
+            <div id="sql-editor" class="form-control form-control-lg col me-2" role="textbox" aria-multiline="true" aria-label="SQL query"></div>
             <div class="d-flex flex-column gap-1 col-auto">
                 <button class="btn btn-primary flex-fill" id="sql-run" type="submit">Execute</button>
                 <button class="btn btn-outline-secondary flex-fill d-flex align-items-center justify-content-center" id="sql-history-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#history-sidebar" aria-controls="history-sidebar">
@@ -106,8 +107,8 @@
             </div>
         </div>
 
-        <div class="alert alert-danger" id="error" style="display: none"></div>
-        <div class="alert alert-info" id="info" style="display: none"></div>
+        <div class="alert alert-danger" id="error" role="alert" style="display: none"></div>
+        <div class="alert alert-info" id="info" role="status" style="display: none"></div>
 
         <div class="row pb-4">
             <div class="overflow-x-auto">
@@ -121,32 +122,32 @@
 
         </div>
     </div>
-</div>
+</main>
 
-<div id="bottom-bar" class="d-flex position-sticky justify-content-center bottom-0 pb-4 d-none pe-none">
+<div id="bottom-bar" role="navigation" aria-label="Table pagination" class="d-flex position-sticky justify-content-center bottom-0 pb-4 d-none pe-none">
     <div class="row bg-body border border-dark shadow p-3 rounded-2 pe-auto">
-        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-prev" type="button">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
+        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-prev" type="button" aria-label="Previous page">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16" aria-hidden="true">
                 <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
             </svg>
         </button>
         <a href="#" data-bs-toggle="tooltip" class="text-decoration-none col-auto" id="pager"></a>
-        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-next" type="button">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-right-fill" viewBox="0 0 16 16">
+        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-next" type="button" aria-label="Next page">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-right-fill" viewBox="0 0 16 16" aria-hidden="true">
                 <path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/>
             </svg>
         </button>
     </div>
 </div>
 
-<footer class="col text-center text-secondary py-2 my-1 small" id="footer">
+<footer class="col text-center py-2 my-1 small" id="footer">
     <a href="https://yuraj11.github.io" class="text-decoration-none">&copy; 2024 Juraj Novák</a><br>
-    <small>| <a href="https://github.com/inloop/sqlite-viewer" class="text-decoration-none link-opacity-75">Fork me on GitHub</a> |</small>
+    <small>| <a href="https://github.com/inloop/sqlite-viewer" class="text-decoration-none">Fork me on GitHub</a> |</small>
 </footer>
 
-<div class="offcanvas offcanvas-end" tabindex="-1" id="history-sidebar" aria-labelledby="history-sidebar-label">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="history-sidebar" role="dialog" aria-labelledby="history-sidebar-label">
     <div class="offcanvas-header border-bottom">
-        <h5 class="offcanvas-title" id="history-sidebar-label">Query History</h5>
+        <h2 class="offcanvas-title h5" id="history-sidebar-label">Query History</h2>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
     <div class="offcanvas-body d-flex flex-column h-100">
@@ -163,16 +164,16 @@
     </div>
 </div>
 
-<div class="modal fade" id="app-dialog" tabindex="-1" aria-labelledby="app-dialog-title" aria-hidden="true">
+<div class="modal fade" id="app-dialog" tabindex="-1" role="dialog" aria-labelledby="app-dialog-title" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="app-dialog-title">SQLite Viewer</h5>
+                <h2 class="modal-title h5" id="app-dialog-title">SQLite Viewer</h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p class="mb-0" id="app-dialog-message"></p>
-                <input type="text" class="form-control mt-3 d-none" id="app-dialog-input">
+                <input type="text" class="form-control mt-3 d-none" id="app-dialog-input" aria-labelledby="app-dialog-message">
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -201,8 +202,6 @@
 <template id="tmpl-history-empty">
     <div class="text-center text-secondary py-5">No queries in history yet.</div>
 </template>
-
-<input type="file" id="dropzone-dialog" style="opacity: 0;display:none">
 
 <script src="js/dom.js"></script>
 <script src="js/tom-select.min.js"></script>

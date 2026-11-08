@@ -74,10 +74,41 @@
     color: #fff !important;
 }
 
+/* Bootstrap's default link blue is only ~4.1:1 on the light background. */
+[data-bs-theme="light"] {
+    --bs-link-color-rgb: 10, 88, 202;
+    --bs-link-hover-color-rgb: 8, 66, 152;
+}
+
+[data-bs-theme="light"] #footer {
+    color: #495057;
+}
+
+[data-bs-theme="dark"] #footer {
+    color: #adb5bd;
+}
+
+/* btn-outline-secondary's #6c757d text is ~4.3:1 on both backgrounds. */
+[data-bs-theme="light"] .btn-outline-secondary {
+    --bs-btn-color: #495057;
+    --bs-btn-border-color: #6c757d;
+}
+
+[data-bs-theme="dark"] .btn-outline-secondary {
+    --bs-btn-color: #adb5bd;
+    --bs-btn-border-color: #6c757d;
+}
+
 /* Header links/icons inherit the header text color; without this the resizer
    anchor takes Bootstrap's default link color instead. */
 #header a {
     color: inherit;
+}
+
+/* The file input is visually hidden inside the dropzone; show focus on the box. */
+#dropzone:focus-within {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
 }
 
 #dropzone {
@@ -91,6 +122,7 @@
     opacity: 0;
     transition: opacity 0.5s ease;
 }
+
 
 /* Pull the footer closer to the table while the pager is visible.
    !important is needed to beat the Bootstrap my-1 utility on #footer. */
