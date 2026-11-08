@@ -8,14 +8,33 @@ const SQL_LIMIT_REGEX = /\bLIMIT\s+(\d+)(?:\s*,\s*(\d+)|\s+OFFSET\s+(\d+))?(\s*;
 
 // Leading keyword of a statement that changes the schema or data.
 const MODIFY_STATEMENT_REGEX = /^(?:create|drop|alter|insert|delete|update|replace|vacuum|reindex)\b/i;
+// Leading keyword of a statement that produces a result set.
+const READ_STATEMENT_REGEX = /^(?:select|with|values)\b/i;
+
+// Rows rendered at most for a read query that doesn't specify its own LIMIT.
+const MAX_UNLIMITED_ROWS = 5000;
+
+// Remove leading whitespace and comments so the first keyword can be inspected.
+function stripLeadingComments(query) {
+    return query.replace(/^(?:(?:\s+)|(?:--[^\n]*\n?)|(?:\/\*[\s\S]*?\*\/))+/, "");
+}
 
 // True when the query's first statement modifies the database, so the table
 // list (names and row counts) needs refreshing. Only the leading keyword is
 // inspected, after skipping whitespace and comments, so identifiers or string
 // literals further into the query can't trigger a false positive.
 function modifiesDatabase(query) {
-    const start = query.replace(/^(?:(?:\s+)|(?:--[^\n]*\n?)|(?:\/\*[\s\S]*?\*\/))+/, "");
-    return MODIFY_STATEMENT_REGEX.test(start);
+    return MODIFY_STATEMENT_REGEX.test(stripLeadingComments(query));
+}
+
+// Wrap a read-only, single-statement query with no LIMIT in a capped subquery
+// so a stray "SELECT * FROM huge_table" can't pull and render the whole table.
+function applyRowCap(query) {
+    if (!READ_STATEMENT_REGEX.test(stripLeadingComments(query))) return query;
+    const body = query.trim().replace(/;+$/, "");
+    // Don't wrap multi-statement input, which would be invalid inside a subquery.
+    if (body.includes(";")) return query;
+    return `SELECT * FROM (${body}) LIMIT ${MAX_UNLIMITED_ROWS}`;
 }
 
 function quoteIdentifier(name) {
@@ -723,6 +742,8 @@ async function renderQuery(query) {
     $("#data").show();
 
     const tableName = getTableNameFromQuery(query);
+    const limit = parseLimitFromQuery(query);
+    const sqlToRun = limit === null ? applyRowCap(query) : query;
 
     // The column-type lookup and the data query are independent.
     let columnTypes;
@@ -730,7 +751,7 @@ async function renderQuery(query) {
     try {
         [columnTypes, res] = await Promise.all([
             tableName != null ? getTableColumnTypes(tableName) : Promise.resolve(new Map()),
-            execSql(query)
+            execSql(sqlToRun)
         ]);
     } catch (ex) {
         theadRow.replaceChildren();
@@ -768,6 +789,11 @@ async function renderQuery(query) {
             bodyFragment.append(tr);
         }
         tbody.replaceChildren(bodyFragment);
+
+        if (limit === null && res.values.length >= MAX_UNLIMITED_ROWS) {
+            infoBox.text(`Showing the first ${MAX_UNLIMITED_ROWS} rows. Add a LIMIT clause to browse further.`);
+            infoBox.show();
+        }
     } else {
         theadRow.replaceChildren();
         tbody.replaceChildren();
