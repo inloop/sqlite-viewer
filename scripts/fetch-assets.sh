@@ -143,8 +143,11 @@ sqlite_wasm() {
 chinook() {
     need zip
     # Ship the sample database as a ZIP so the ZIP import path stays exercised.
+    # GitHub release assets intermittently 504; jsDelivr/raw serve identical bytes.
     src=$(download "bdf635be69850bd3be09c9a2dbeef7ddfb80036bd3ef3381383cd03b61e4a61a" \
-        "https://github.com/lerocha/chinook-database/releases/download/v1.4.5/Chinook_Sqlite.sqlite")
+        "https://cdn.jsdelivr.net/gh/lerocha/chinook-database@v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite" \
+        "https://github.com/lerocha/chinook-database/releases/download/v1.4.5/Chinook_Sqlite.sqlite" \
+        "https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite")
     mkdir -p "$ROOT/examples"
     echo "==> examples/Chinook_Sqlite.zip"
     rm -f "$ROOT/examples/Chinook_Sqlite.zip"
