@@ -63,9 +63,19 @@ jquery() {
         "js/jquery-4.0.0.slim.min.js"
 }
 
+select2() {
+    fetch "https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css" \
+        "5d5e14d587308b5d1ad79f51e9aea2f8f469b0a02b335f559f5a4bb756b81737" \
+        "css/select2.min.css"
+    fetch "https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js" \
+        "15692c266649fbc8acb4ebfb345e7e9499486d9551148241a235c9d62eea2f55" \
+        "js/select2.min.js"
+}
+
 main() {
     bootstrap
     jquery
+    select2
     echo "All external assets downloaded successfully."
 }
 

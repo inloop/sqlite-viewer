@@ -10,3 +10,5 @@ node_modules/
 /css/bootstrap.min.css
 /js/bootstrap.bundle.min.js
 /js/jquery-4.0.0.slim.min.js
+/css/select2.min.css
+/js/select2.min.js
