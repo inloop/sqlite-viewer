@@ -849,6 +849,11 @@ function loadQueryFromHistory(sql) {
     }
 }
 
+// Clone the first element of a <template> by id.
+function cloneTemplate(id) {
+    return document.getElementById(id).content.firstElementChild.cloneNode(true);
+}
+
 function renderQueryHistory() {
     const historyListContainer = $("#history-list");
     if (historyListContainer.length === 0) return;
@@ -873,33 +878,21 @@ function renderQueryHistory() {
     $("#history-sidebar-label").text(`History: ${friendlyName}`);
 
     if (historyList.length === 0) {
-        historyListContainer.append('<div class="text-center text-secondary py-5">No queries in history yet.</div>');
+        historyListContainer.append(cloneTemplate("tmpl-history-empty"));
         return;
     }
 
     historyList.forEach((item, index) => {
-        const sql = item.sql;
+        const card = cloneTemplate("tmpl-history-card");
+        card.querySelector("small").textContent = new Date(item.timestamp).toLocaleString();
 
-        const header = $("<div>").addClass("d-flex justify-content-between align-items-center").append(
-            $("<small>").addClass("text-secondary font-monospace").css("font-size", "0.75rem")
-                .text(new Date(item.timestamp).toLocaleString()),
-            $("<button>").addClass("btn btn-link p-0 text-danger text-decoration-none").css("font-size", "0.85rem")
-                .text("Delete").on("click", () => deleteHistoryItem(index))
-        );
+        const sqlPreview = card.querySelector('[data-action="load"]');
+        sqlPreview.textContent = item.sql;
+        sqlPreview.addEventListener("click", () => loadQueryFromHistory(item.sql));
 
-        const card = $("<div>").addClass("card shadow-sm border-0 border-start border-3 border-primary query-card").append(
-            $("<div>").addClass("card-body p-2 d-flex flex-column gap-1").append(
-                header,
-                $("<pre>").addClass("p-2 mb-1 overflow-x-auto").text(sql)
-                    .on("click", () => loadQueryFromHistory(sql)),
-                $("<div>").addClass("d-flex gap-2 mt-1").append(
-                    $("<button>").addClass("btn btn-sm btn-light py-0 px-2").text("Run")
-                        .on("click", () => loadQueryFromHistory(sql)),
-                    $("<button>").addClass("btn btn-sm btn-light py-0 px-2").text("Copy")
-                        .on("click", () => copyQueryToClipboard(sql))
-                )
-            )
-        );
+        card.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHistoryItem(index));
+        card.querySelector('[data-action="run"]').addEventListener("click", () => loadQueryFromHistory(item.sql));
+        card.querySelector('[data-action="copy"]').addEventListener("click", () => copyQueryToClipboard(item.sql));
 
         historyListContainer.append(card);
     });
