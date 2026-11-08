@@ -179,7 +179,6 @@ async function loadDB(arrayBuffer) {
         $("#dropzone").css("height", "75px");
 
     } catch (ex) {
-        setIsLoading(false);
         window.alert(ex.message || ex);
     } finally {
         setIsLoading(false);
