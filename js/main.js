@@ -721,7 +721,7 @@ async function exportAllToCsv() {
         const content = await zip.generateAsync({type: "blob"});
         saveAs(content, "exported_all_db.zip");
     } catch (e) {
-        showError(e);
+        showError(e.message || e);
     }
     setIsLoading(false);
 }
