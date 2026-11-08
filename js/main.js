@@ -244,15 +244,17 @@ async function populateTableList(selectFirst = false) {
         let firstTableName = null;
 
         if (res) {
-            for (const [name, type] of res.values) {
-                if (firstTableName === null) {
-                    firstTableName = name;
-                }
-
-                const rowCount = await getTableRowsCount(name);
-                loadedTableNames.push(name);
-                tableSelect.addOption({ value: name, text: tableLabel(name, rowCount, type) });
+            const tables = res.values;
+            if (tables.length > 0) {
+                firstTableName = tables[0][0];
             }
+
+            // Row counts are independent; fetch them concurrently.
+            const rowCounts = await Promise.all(tables.map(([name]) => getTableRowsCount(name)));
+            tables.forEach(([name, type], i) => {
+                loadedTableNames.push(name);
+                tableSelect.addOption({ value: name, text: tableLabel(name, rowCounts[i], type) });
+            });
         }
 
         if (selectFirst && firstTableName !== null) {
