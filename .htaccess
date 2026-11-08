@@ -1,0 +1,3 @@
+# Serve the SQLite WebAssembly module with the MIME type browsers expect.
+# (Harmless on servers that ignore .htaccess, e.g. nginx and GitHub Pages.)
+AddType application/wasm .wasm

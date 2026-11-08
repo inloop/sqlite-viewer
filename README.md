@@ -68,6 +68,19 @@ docker run --rm -p 8080:80 \
 * **`DEFAULT_URL`**: The database at this URL/path (relative path or absolute URL) will be fetched and opened on page load. Both raw databases and `.zip` archives are supported.
 * **`DEFAULT_SQL`**: The code editor will be pre-populated and this query will execute automatically on startup.
 
+## Releases
+
+Pushing a version tag (e.g. `v1.1`) builds `sqlite-viewer-<tag>.zip` and
+attaches it to a GitHub Release. The archive contains the ready-to-serve site
+with the third-party assets included, so it can be unpacked straight into a
+directory your web server serves:
+
+```bash
+unzip sqlite-viewer-v1.1.zip -d /var/www/html/sqlite-viewer
+```
+
+Build the same archive locally with `make deps` (once) and then `make release`.
+
 ## Libraries
 
 - Using the official [sqlite3-wasm](https://sqlite.org/wasm/doc/trunk/index.md) for parsing sqlite files.

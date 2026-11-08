@@ -6,6 +6,9 @@
 node_modules/
 *.map
 
+# Release archives built by `make release`
+/sqlite-viewer*.zip
+
 # Downloaded third-party assets (run scripts/fetch-assets.sh)
 /css/bootstrap.min.css
 /js/bootstrap.bundle.min.js
