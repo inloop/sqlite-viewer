@@ -74,10 +74,12 @@ let editor = null;
 let tableSelect = null;
 const errorBox = $("#error");
 const infoBox = $("#info");
-const hashParams = new URLSearchParams(window.location.hash.substring(1));
+let hashParams = new URLSearchParams(window.location.hash.substring(1));
 const appConfig = window.APP_CONFIG || {};
 
 // Set (or, with a null value, remove) a hash parameter and sync the URL.
+// replaceState (rather than assigning location.hash) keeps this from firing a
+// hashchange we would otherwise have to ignore.
 function setHashParam(key, value) {
     if (value == null) {
         if (!hashParams.has(key)) return;
@@ -86,6 +88,39 @@ function setHashParam(key, value) {
         hashParams.set(key, value);
     }
     history.replaceState(null, null, `#${hashParams.toString()}`);
+}
+
+// Resolve a #url value to an absolute URL and its database/history key.
+function resolveDbUrl(urlStr) {
+    const resolvedUrl = new URL(decodeURIComponent(urlStr), window.location.href);
+    return { resolvedUrl, key: "url:" + encodeURIComponent(resolvedUrl.href) };
+}
+
+// React to the user editing the hash or using back/forward: load a newly
+// referenced database, otherwise render a newly referenced query.
+function onHashChange() {
+    hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+    const url = hashParams.get("url");
+    if (url != null) {
+        let isCurrent = false;
+        try {
+            isCurrent = resolveDbUrl(url).key === currentDbKey;
+        } catch (_) {
+            // Malformed URL: let loadRemoteDB report it.
+        }
+        if (!isCurrent) {
+            loadRemoteDB(url);
+            return;
+        }
+    }
+
+    if (!editor) return;
+    const sql = hashParams.get("sql");
+    if (sql != null && sql !== editor.toString()) {
+        editor.updateCode(sql);
+        renderQuery(sql);
+    }
 }
 
 initialize();
@@ -135,6 +170,8 @@ function bindUiEvents() {
 
     // Links inside the dropzone must not trigger its click handler.
     $(".no-propagate").on("click", (event) => event.stopPropagation());
+
+    window.addEventListener("hashchange", onHashChange);
 }
 
 function initTableSelect() {
@@ -174,8 +211,8 @@ function initDatabase() {
 
 async function loadRemoteDB(urlStr) {
     try {
-        const resolvedUrl = new URL(decodeURIComponent(urlStr), window.location.href);
-        currentDbKey = "url:" + encodeURIComponent(resolvedUrl.href);
+        const { resolvedUrl, key } = resolveDbUrl(urlStr);
+        currentDbKey = key;
         currentDbName = decodeURIComponent(resolvedUrl.pathname.split("/").pop()) || resolvedUrl.hostname;
         setIsLoading(true);
         const response = await fetch(resolvedUrl.href);
