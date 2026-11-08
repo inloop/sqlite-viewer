@@ -66,7 +66,8 @@ a `file://` URL), for example:
 python3 -m http.server
 ```
 
-The Docker image runs the download step automatically during the build.
+The Docker image and the GitHub Pages workflow
+(`.github/workflows/pages.yml`) run the download step automatically.
 
 ## Libraries
 
