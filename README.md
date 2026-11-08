@@ -14,7 +14,7 @@ and prefill a SQL query using hash parameters:
 - To prefill a SQL query, append<br>
   `#sql=SELECT%20*%20FROM%20table` to the URL.
 - To load a remote file *and* prefill a query at the same time: Append both like this:<br>
-  `#url=https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite&sql=SELECT%20*%20FROM%20table`
+  `#url=/sampledb.zip&sql=SELECT+*+FROM+table`
 
 ![](/img/preview.png?raw=true "Screenshot")
 
@@ -52,25 +52,17 @@ docker run --rm -p 8080:80 \
 
 ## Building from source
 
-The third-party libraries are **not** stored in this repository. Download the
-pinned versions before serving the site:
+There is no built process. You just have to download the third-party librarie
+(they are not stored here) as pinned versions directly from their sources:
 
 ```bash
 ./scripts/fetch-assets.sh   # or: make deps
 ```
 
-Remove the downloaded files again (restore the tree to its checked-in state):
-
-```bash
-make clean-deps
-```
+Remove the downloaded files again with `make clean-deps`.
 
 Then serve the directory over HTTP (the SQLite WASM backend does not work from
-a `file://` URL), for example:
-
-```bash
-python3 -m http.server
-```
+a `file://` URL), for example using `python3 -m http.server`.
 
 The Docker image and the GitHub Pages workflow
 (`.github/workflows/pages.yml`) run the download step automatically.
@@ -80,7 +72,7 @@ The Docker image and the GitHub Pages workflow
 - Using the official [sqlite3-wasm](https://sqlite.org/wasm/doc/trunk/index.md) for parsing sqlite files.
 - Can handle SQLite files in ZIP files, thanks to [fflate](https://github.com/101arrowz/fflate).
 - Enjoy query editing with SQL syntax highlighting thanks to [CodeJar](https://medv.io/codejar/) and [PrismJS](https://prismjs.com/).
-- Using [Bootstrap](https://getbootstrap.com/) 5.3.8, [Tom Select](https://tom-select.js.org/) and [FileSaver.js](https://github.com/eligrey/FileSaver.js/).
+- Also: [Bootstrap](https://getbootstrap.com/) 5.3.8, [Tom Select](https://tom-select.js.org/) and [FileSaver.js](https://github.com/eligrey/FileSaver.js/).
 
 ## License
 
