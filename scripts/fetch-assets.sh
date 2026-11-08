@@ -57,8 +57,15 @@ bootstrap() {
         "js/bootstrap.bundle.min.js"
 }
 
+jquery() {
+    fetch "https://code.jquery.com/jquery-4.0.0.slim.min.js" \
+        "f031a9bf5dc7226fb9883356c355eac60141e268fec8e28535bfad1c164ea307" \
+        "js/jquery-4.0.0.slim.min.js"
+}
+
 main() {
     bootstrap
+    jquery
     echo "All external assets downloaded successfully."
 }
 
