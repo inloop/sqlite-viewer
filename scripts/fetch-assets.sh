@@ -111,6 +111,20 @@ codejar() {
     mv "$ROOT/js/codejar.js.tmp" "$ROOT/js/codejar.js"
 }
 
+sqlite_wasm() {
+    need unzip
+    release=sqlite-wasm-3540100
+    zip=$(fetch_zip "https://sqlite.org/2026/$release.zip" \
+        "85ebce90b6d189442b29e11d193337b5e63203aae9b6590dbe89a601b9891da2")
+    rm -rf "$TMP/$release"
+    unzip -qo "$zip" -d "$TMP"
+    mkdir -p "$ROOT/js"
+    echo "==> js/sqlite3.js"
+    cp "$TMP/$release/jswasm/sqlite3.js" "$ROOT/js/sqlite3.js"
+    echo "==> js/sqlite3.wasm"
+    cp "$TMP/$release/jswasm/sqlite3.wasm" "$ROOT/js/sqlite3.wasm"
+}
+
 main() {
     bootstrap
     jquery
@@ -120,6 +134,7 @@ main() {
     jszip
     filesaver
     codejar
+    sqlite_wasm
     echo "All external assets downloaded successfully."
 }
 

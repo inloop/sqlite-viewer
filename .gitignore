@@ -18,3 +18,5 @@ node_modules/
 /js/jszip.min.js
 /js/FileSaver.min.js
 /js/codejar.js
+/js/sqlite3.js
+/js/sqlite3.wasm
