@@ -190,3 +190,9 @@
 [data-bs-theme="dark"] .query-card pre:hover {
     filter: brightness(1.15);
 }
+
+/* The Export menu and the floating pager are slightly see-through (20%). */
+.dropdown-menu,
+.pager-box {
+    background-color: rgba(var(--bs-body-bg-rgb), 0.8);
+}
