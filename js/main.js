@@ -207,6 +207,14 @@ function bindUiEvents() {
         event.preventDefault();
         exportQueryTableToCsv();
     });
+    $('[data-action="export-db"]').on("click", (event) => {
+        event.preventDefault();
+        exportDatabase(false);
+    });
+    $('[data-action="export-db-zip"]').on("click", (event) => {
+        event.preventDefault();
+        exportDatabase(true);
+    });
 
     $("#page-prev").on("click", (event) => setPage(event.currentTarget, false));
     $("#page-next").on("click", (event) => setPage(event.currentTarget, true));
@@ -915,6 +923,30 @@ function zipFiles(files) {
         // level 6 = DEFLATE: much smaller CSV exports for a little CPU.
         fflate.zip(files, { level: 6 }, (err, data) => (err ? reject(err) : resolve(data)));
     });
+}
+
+// Base name for downloaded database files, derived from the loaded DB name.
+function databaseFileName(extension) {
+    const base = currentDbName.replace(/\.(sqlite3?|db3?|zip)$/i, "") || "database";
+    return base + extension;
+}
+
+// Download the in-memory database, as a .sqlite file or zipped.
+async function exportDatabase(zipped) {
+    setIsLoading(true);
+    try {
+        const { buffer } = await sendWorkerMessage("export");
+        const sqliteName = databaseFileName(".sqlite");
+        if (zipped) {
+            const zip = await zipFiles({ [sqliteName]: new Uint8Array(buffer) });
+            saveAs(new Blob([zip], { type: "application/zip" }), databaseFileName(".zip"));
+        } else {
+            saveAs(new Blob([buffer], { type: "application/vnd.sqlite3" }), sqliteName);
+        }
+    } catch (e) {
+        showError(e.message || e);
+    }
+    setIsLoading(false);
 }
 
 async function exportAllToCsv() {
