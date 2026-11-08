@@ -96,6 +96,17 @@ function initialize() {
     $("#resizer").click(toggleFullScreen);
     $("#sql-editor").keydown(onKeyDown);
 
+    const tables = $("#tables");
+    tables.select2({
+        placeholder: "Select a table",
+        theme: "bootstrap-5",
+        templateSelection: selectFormatter,
+        templateResult: selectFormatter
+    });
+    tables.on("change", async function () {
+        await doDefaultSelect(tables.val());
+    });
+
     if (typeof FileReader === "undefined" || typeof WebAssembly === "undefined") {
         $("#dropzone, #dropzone-dialog").hide();
         $("#compat-error").toggleClass("d-none", false);
@@ -298,19 +309,10 @@ async function getTableColumnTypes(tableName) {
 }
 
 function resetTableList() {
-    const tables = $("#tables");
     loadedTableNames = [];
+    const tables = $("#tables");
     tables.empty();
     tables.append("<option></option>");
-    tables.select2({
-        placeholder: "Select a table",
-        theme: "bootstrap-5",
-        templateSelection: selectFormatter,
-        templateResult: selectFormatter
-    });
-    tables.on("change", async function (e) {
-        await doDefaultSelect(tables.val());
-    });
 }
 
 function setIsLoading(isLoading) {
