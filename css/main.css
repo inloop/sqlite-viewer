@@ -240,6 +240,9 @@
     font-family: var(--bs-font-monospace), monospace;
     font-size: 16px;
     overflow-y: auto;
+    /* .form-control-lg would give this 0.5rem; use the same radius as the
+       drop zone and the buttons (--bs-border-radius) instead. */
+    border-radius: var(--bs-border-radius);
 }
 
 #data {
