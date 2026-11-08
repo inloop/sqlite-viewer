@@ -86,6 +86,7 @@ async function execSql(sql) {
 }
 
 let loadedTableNames = [];
+let lastCachedQueryCount = { db: null, query: "", count: 0 };
 let currentDbKey = "default";
 let currentDbName = "Default";
 let editor = null;
@@ -349,17 +350,26 @@ function stripLimitClause(query) {
     return query.replace(SQL_LIMIT_REGEX, "$4").trim().replace(/;+$/, "");
 }
 
-// True when the query has at least one row beyond the current page. Cheaper
-// than counting: it stops as soon as the extra row is found.
-async function hasMoreRows(query, limit) {
+// Exact row count for a read query, cached per (database, query). Used to show
+// the page total; callers should not block the render on it.
+async function getQueryRowCount(query) {
+    if (query === lastCachedQueryCount.query && currentDbKey === lastCachedQueryCount.db) {
+        return lastCachedQueryCount.count;
+    }
+    if (!READ_STATEMENT_REGEX.test(stripLeadingComments(query))) return -1;
+
     const cleanQuery = stripLimitClause(query);
-    if (!cleanQuery) return false;
+    if (!cleanQuery) return -1;
+
     try {
-        const res = await execSql(`SELECT 1 FROM (${cleanQuery}) LIMIT 1 OFFSET ${limit.offset + limit.max}`);
-        return !!res;
+        const res = await execSql(`SELECT COUNT(*) FROM (${cleanQuery})`);
+        if (!res) return -1;
+        const count = res.values[0][0];
+        lastCachedQueryCount = { db: currentDbKey, query, count };
+        return count;
     } catch (e) {
-        console.error("Error checking for more rows:", e);
-        return false;
+        console.error("Error counting rows:", e);
+        return -1;
     }
 }
 
@@ -527,6 +537,7 @@ async function executeSql() {
 
     // If the query modifies the database, refresh the dropdown to keep counts/names in sync
     if (modifiesDatabase(query)) {
+        lastCachedQueryCount = { db: null, query: "", count: 0 };
         await populateTableList();
     } else {
         const tableName = getTableNameFromQuery(query);
@@ -546,6 +557,7 @@ function getTableNameFromQuery(query) {
     // The table name is the first of the last five groups that participated.
     return match.slice(6, 11).find(group => group !== undefined) ?? null;
 }
+
 
 function parseLimitFromQuery(query) {
     const sqlRegex = SQL_LIMIT_REGEX.exec(query);
@@ -593,7 +605,29 @@ async function setPage(el, next) {
     await executeSql();
 }
 
-async function refreshPagination(query, rowCount) {
+// Bumped on every render so a late background count can't overwrite a newer page.
+let paginationRequest = 0;
+
+function updatePager(currentPage, { hasNext, totalPages = null, rowCount = 0 }) {
+    const pager = $("#pager");
+    const pagerTitle = totalPages !== null ? `Row count: ${rowCount}` : `Page ${currentPage}`;
+
+    // A live tooltip keeps its original title, so drop the instance and re-seed
+    // the title; recreation happens here or in renderQuery's tooltip loop.
+    const pagerEl = document.getElementById("pager");
+    bootstrap.Tooltip.getInstance(pagerEl)?.dispose();
+    pagerEl.removeAttribute("data-bs-original-title");
+    pager.attr("title", pagerTitle);
+    bootstrap.Tooltip.getOrCreateInstance(pagerEl);
+
+    pager.text(totalPages !== null ? `${currentPage} / ${totalPages}` : String(currentPage));
+    $("#page-prev").toggleClass("disabled", currentPage <= 1);
+    $("#page-next").toggleClass("disabled", !hasNext);
+    setPagerVisible(true);
+}
+
+function refreshPagination(query, rowCount) {
+    const requestId = ++paginationRequest;
     const limit = parseLimitFromQuery(query);
     if (limit === null || limit.max === 0) {
         setPagerVisible(false);
@@ -601,18 +635,15 @@ async function refreshPagination(query, rowCount) {
     }
 
     const currentPage = limit.currentPage;
-    // A page that wasn't full is always the last one; only probe when it is.
-    const hasNext = rowCount >= limit.max && await hasMoreRows(query, limit);
+    // Show the page number right away; assume a next page while this one is full.
+    updatePager(currentPage, { hasNext: rowCount >= limit.max });
 
-    const pager = $("#pager");
-    pager.attr("title", `Page ${currentPage}`);
-    bootstrap.Tooltip.getOrCreateInstance("#pager").hide();
-    pager.text(String(currentPage));
-
-    $("#page-prev").toggleClass("disabled", currentPage <= 1);
-    $("#page-next").toggleClass("disabled", !hasNext);
-
-    setPagerVisible(true);
+    // Fill in the exact total in the background.
+    getQueryRowCount(query).then(count => {
+        if (requestId !== paginationRequest || count < 0) return;
+        const totalPages = Math.max(1, Math.ceil(count / limit.max));
+        updatePager(currentPage, { hasNext: currentPage < totalPages, totalPages, rowCount: count });
+    });
 }
 
 function showError(msg) {
@@ -801,7 +832,7 @@ async function renderQuery(query) {
         infoBox.show();
     }
 
-    await refreshPagination(query, res ? res.values.length : 0);
+    refreshPagination(query, res ? res.values.length : 0);
 
     document.querySelectorAll('[data-bs-toggle="tooltip"]')
         .forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
