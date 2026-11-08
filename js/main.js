@@ -1,7 +1,22 @@
 "use strict";
 
-const SQL_FROM_REGEX = /FROM\s+((?=['"])((["'])(?<g1>[^'"]+))|(?<g2>\w+))/mi;
+// Matches the first table reference after a FROM, optionally schema-qualified
+// and quoted with ", ', ` or [ ]. Groups 1-5 capture an optional schema
+// qualifier, groups 6-10 the table name.
+const SQL_FROM_REGEX = /\bFROM\s+(?:(?:"([^"]+)"|'([^']+)'|`([^`]+)`|\[([^\]]+)\]|(\w+))\s*\.\s*)?(?:"([^"]+)"|'([^']+)'|`([^`]+)`|\[([^\]]+)\]|(\w+))/i;
 const SQL_LIMIT_REGEX = /\bLIMIT\s+(\d+)(?:\s*,\s*(\d+)|\s+OFFSET\s+(\d+))?(\s*;?\s*)$/i;
+
+// Leading keyword of a statement that changes the schema or data.
+const MODIFY_STATEMENT_REGEX = /^(?:create|drop|alter|insert|delete|update|replace|vacuum|reindex)\b/i;
+
+// True when the query's first statement modifies the database, so the table
+// list (names and row counts) needs refreshing. Only the leading keyword is
+// inspected, after skipping whitespace and comments, so identifiers or string
+// literals further into the query can't trigger a false positive.
+function modifiesDatabase(query) {
+    const start = query.replace(/^(?:(?:\s+)|(?:--[^\n]*\n?)|(?:\/\*[\s\S]*?\*\/))+/, "");
+    return MODIFY_STATEMENT_REGEX.test(start);
+}
 
 function quoteIdentifier(name) {
     return '"' + name.replace(/"/g, '""') + '"';
@@ -425,9 +440,8 @@ async function executeSql() {
     saveQueryToHistory(query);
     await renderQuery(query);
 
-    // If query creates, drops, alters, or modifies data, refresh the dropdown to keep counts/names in sync
-    const SCHEMA_MODIFY_REGEX = /\b(create|drop|alter|insert|delete|update|replace)\b/i;
-    if (SCHEMA_MODIFY_REGEX.test(query)) {
+    // If the query modifies the database, refresh the dropdown to keep counts/names in sync
+    if (modifiesDatabase(query)) {
         lastCachedQueryCount = { db: null, select: "", count: 0 };
         await populateTableList();
     } else {
@@ -443,12 +457,10 @@ async function executeSql() {
 }
 
 function getTableNameFromQuery(query) {
-    const sqlRegex = SQL_FROM_REGEX.exec(query);
-    if (sqlRegex != null) {
-        return sqlRegex.groups.g1 ?? sqlRegex.groups.g2;
-    } else {
-        return null;
-    }
+    const match = SQL_FROM_REGEX.exec(query);
+    if (!match) return null;
+    // The table name is the first of the last five groups that participated.
+    return match.slice(6, 11).find(group => group !== undefined) ?? null;
 }
 
 async function parseLimitFromQuery(query) {
@@ -495,19 +507,19 @@ async function setPage(el, next) {
     const query = editor.toString();
     const limit = await parseLimitFromQuery(query);
 
-    let pageToSet = 0;
+    // currentPage is 1-based; work in 0-based page indices when computing the offset.
+    let pageIndex;
     if (typeof next !== "undefined") {
-        pageToSet = (next ? limit.currentPage : limit.currentPage - 2);
+        pageIndex = next ? limit.currentPage : limit.currentPage - 2;
     } else {
-        const page = window.prompt("Go to page");
-        if (!isNaN(page) && page >= 1 && page <= limit.pages) {
-            pageToSet = page - 1;
-        } else {
+        const page = Number(window.prompt("Go to page"));
+        if (!Number.isInteger(page) || page < 1 || page > limit.pages) {
             return;
         }
+        pageIndex = page - 1;
     }
 
-    const offset = (pageToSet * limit.max);
+    const offset = pageIndex * limit.max;
     editor.updateCode(query.replace(SQL_LIMIT_REGEX, `LIMIT ${offset},${limit.max}$4`));
 
     await executeSql();
