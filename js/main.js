@@ -69,6 +69,7 @@ async function execSql(sql) {
 let lastCachedQueryCount = { db: null, select: "", count: 0 };
 let loadedTableNames = [];
 let currentDbKey = "default";
+let currentDbName = "Default";
 let editor = null;
 let tableSelect = null;
 const errorBox = $("#error");
@@ -142,6 +143,7 @@ async function loadRemoteDB(urlStr) {
     try {
         const resolvedUrl = new URL(decodeURIComponent(urlStr), window.location.href);
         currentDbKey = "url:" + encodeURIComponent(resolvedUrl.href);
+        currentDbName = decodeURIComponent(resolvedUrl.pathname.split("/").pop()) || resolvedUrl.hostname;
         setIsLoading(true);
         const response = await fetch(resolvedUrl.href);
         if (!response.ok) {
@@ -378,6 +380,7 @@ function setupDragAndDrop() {
 
 function handleFile(file) {
     setHashParam("url", null);
+    currentDbName = file.name;
     if (file.name.endsWith(".zip")) {
         handleZipFile(file);
     } else {
@@ -420,6 +423,7 @@ async function handleZipFile(file) {
         const arrayBuffer = await dbFile.async("arraybuffer");
         if (file && typeof file.name === "string") {
             currentDbKey = `zip:${file.name}:${dbFile.name}-${arrayBuffer.byteLength}`;
+            currentDbName = dbFile.name;
         }
         await loadDB(arrayBuffer);
 
@@ -888,19 +892,8 @@ function renderQueryHistory() {
     $("#history-count").text(`${historyList.length} queries saved`);
     historyListContainer.empty();
 
-    // Set a friendly name in the offcanvas header
-    let friendlyName = "Default";
-    if (currentDbKey !== "default") {
-        if (currentDbKey.startsWith("url:")) {
-            friendlyName = decodeURIComponent(currentDbKey.substring(4)).split("/").pop();
-        } else if (currentDbKey.startsWith("file:")) {
-            friendlyName = currentDbKey.substring(5).split("-")[0];
-        } else if (currentDbKey.startsWith("zip:")) {
-            const parts = currentDbKey.substring(4).split(":");
-            friendlyName = parts.length > 1 ? parts[1].split("-")[0] : parts[0];
-        }
-    }
-    $("#history-sidebar-label").text(`History: ${friendlyName}`);
+    // Friendly database name shown in the offcanvas header
+    $("#history-sidebar-label").text(`History: ${currentDbName}`);
 
     if (historyList.length === 0) {
         historyListContainer.append(cloneTemplate("tmpl-history-empty"));
