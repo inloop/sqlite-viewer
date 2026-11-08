@@ -207,7 +207,7 @@ async function populateTableList(selectFirst = false) {
     // Reset table name cache
     loadedTableNames = [];
     tableList.empty();
-    tableList.append("<option></option>");
+    tableList.append(emptyOption());
 
     try {
         const res = await execSql("SELECT name, type FROM sqlite_master WHERE type='table' OR type='view' ORDER BY name");
@@ -222,9 +222,7 @@ async function populateTableList(selectFirst = false) {
 
                 const rowCount = await getTableRowsCount(name);
                 loadedTableNames.push(name);
-                const tableType = type !== "table" ? `, ${type}` : "";
-                const option = $("<option>").val(name).text(`${name} (${rowCount} rows${tableType})`);
-                tableList.append(option);
+                tableList.append(tableOption(name, rowCount, type));
             }
         }
 
@@ -316,7 +314,7 @@ function resetTableList() {
     loadedTableNames = [];
     const tables = $("#tables");
     tables.empty();
-    tables.append("<option></option>");
+    tables.append(emptyOption());
 }
 
 function setIsLoading(isLoading) {
@@ -578,6 +576,34 @@ function setPagerVisible(visible) {
     }
 }
 
+// --- View builders ---
+function emptyOption() {
+    return $("<option></option>");
+}
+
+function tableOption(name, rowCount, type) {
+    const tableType = type !== "table" ? `, ${type}` : "";
+    return $("<option>").val(name).text(`${name} (${rowCount} rows${tableType})`);
+}
+
+function headerCell(name, type) {
+    const label = $("<span>").attr("data-bs-toggle", "tooltip").attr("title", type).text(name);
+    return $("<th>").append(label);
+}
+
+function dataCell(value) {
+    const text = String(value);
+    return $("<td>").append($("<span>").attr("title", text).text(text));
+}
+
+function nullBlobCell() {
+    return $("<td>").append($("<span>").attr("title", "Blob").text("null"));
+}
+
+function tableRow() {
+    return $("<tr>");
+}
+
 async function renderQuery(query) {
     const dataBox = $("#data");
     const thead = dataBox.find("thead").find("tr");
@@ -613,25 +639,23 @@ async function renderQuery(query) {
         for (let i = 0; i < columnNames.length; i++) {
             const columnName = columnNames[i];
             const type = columnTypes.has(columnName) ? columnTypes.get(columnName) : "";
-            const span = $("<span>").attr("data-bs-toggle", "tooltip").attr("title", type).text(columnName);
-            thead.append($("<th>").append(span));
+            thead.append(headerCell(columnName, type));
         }
 
         for (let r = 0; r < values.length; r++) {
-            const tr = $("<tr>");
+            const tr = tableRow();
             const rowValues = values[r];
             for (let i = 0; i < rowValues.length; i++) {
                 const columnName = columnNames[i];
                 const type = columnTypes.has(columnName) ? columnTypes.get(columnName).toLowerCase() : "";
                 if (type === "blob" || type === "blob sub_type binary") {
                     if (rowValues[i] === null) {
-                        tr.append($("<td>").append($("<span>").attr("title", "Blob").text("null")));
+                        tr.append(nullBlobCell());
                     } else {
                         renderBlobItem(tr, rowValues[i]);
                     }
                 } else {
-                    const text = String(rowValues[i]);
-                    tr.append($("<td>").append($("<span>").attr("title", text).text(text)));
+                    tr.append(dataCell(rowValues[i]));
                 }
             }
             tbody.append(tr);
