@@ -72,10 +72,17 @@ select2() {
         "js/select2.min.js"
 }
 
+select2_bootstrap_theme() {
+    fetch "https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" \
+        "5cb35411fccf18705e4ad112d836cb514459ddeefddc169b970cc99588fa5b64" \
+        "css/select2-bootstrap-5-theme.min.css"
+}
+
 main() {
     bootstrap
     jquery
     select2
+    select2_bootstrap_theme
     echo "All external assets downloaded successfully."
 }
 
