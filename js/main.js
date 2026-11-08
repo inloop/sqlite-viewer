@@ -89,6 +89,7 @@ let loadedTableNames = [];
 let lastCachedQueryCount = { db: null, query: "", count: 0 };
 let currentDbKey = "default";
 let currentDbName = "Default";
+let databaseAltered = false;
 let editor = null;
 let tableSelect = null;
 const errorBox = $("#error");
@@ -209,12 +210,13 @@ function bindUiEvents() {
     });
     $('[data-action="export-db"]').on("click", (event) => {
         event.preventDefault();
-        exportDatabase(false);
+        if (databaseAltered) exportDatabase(false);
     });
     $('[data-action="export-db-zip"]').on("click", (event) => {
         event.preventDefault();
-        exportDatabase(true);
+        if (databaseAltered) exportDatabase(true);
     });
+    updateDatabaseExportItems();
 
     $("#page-prev").on("click", (event) => setPage(event.currentTarget, false));
     $("#page-next").on("click", (event) => setPage(event.currentTarget, true));
@@ -295,6 +297,7 @@ async function loadDB(arrayBuffer) {
     setIsLoading(true);
 
     resetTableList();
+    resetDatabaseAltered();
 
     try {
         // Send ArrayBuffer to Worker using transferable array for 0-copy transfer
@@ -871,6 +874,9 @@ async function renderQuery(query) {
 
     document.querySelectorAll('[data-bs-toggle="tooltip"]')
         .forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
+
+    // A successfully executed modifying statement changes the in-memory database.
+    if (modifiesDatabase(query)) markDatabaseAltered();
 }
 
 function formatBytes(bytes,decimals) {
@@ -929,6 +935,29 @@ function zipFiles(files) {
 function databaseFileName(extension) {
     const base = currentDbName.replace(/\.(sqlite3?|db3?|zip)$/i, "") || "database";
     return base + extension;
+}
+
+// The database-download items stay disabled until the in-memory database has
+// actually been changed (exporting an untouched copy is pointless).
+function updateDatabaseExportItems() {
+    const disabled = !databaseAltered;
+    $('[data-action="export-db"], [data-action="export-db-zip"]').each(function () {
+        this.classList.toggle("disabled", disabled);
+        this.setAttribute("aria-disabled", String(disabled));
+        if (disabled) this.setAttribute("tabindex", "-1");
+        else this.removeAttribute("tabindex");
+    });
+}
+
+function markDatabaseAltered() {
+    if (databaseAltered) return;
+    databaseAltered = true;
+    updateDatabaseExportItems();
+}
+
+function resetDatabaseAltered() {
+    databaseAltered = false;
+    updateDatabaseExportItems();
 }
 
 // Download the in-memory database, as a .sqlite file or zipped.
