@@ -48,7 +48,17 @@ fetch_zip() {
     printf '%s' "$file"
 }
 
+bootstrap() {
+    fetch "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" \
+        "d85327d99c7a3ee1f9b5d0500d1370acea3ad2db39c163c2f51f232baedbdede" \
+        "css/bootstrap.min.css"
+    fetch "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" \
+        "e4fd49181388c48ec5040bd3fe66f57c29c8e67fcd8502b3354b96ec7ab47cc7" \
+        "js/bootstrap.bundle.min.js"
+}
+
 main() {
+    bootstrap
     echo "All external assets downloaded successfully."
 }
 

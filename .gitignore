@@ -7,3 +7,5 @@ node_modules/
 *.map
 
 # Downloaded third-party assets (run scripts/fetch-assets.sh)
+/css/bootstrap.min.css
+/js/bootstrap.bundle.min.js
