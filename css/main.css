@@ -147,6 +147,24 @@
     color: #fff !important;
 }
 
+/* Focus rings: Bootstrap's #86b7fe border + 25% blue shadow is too dim on the
+   dark page, and our control border override would otherwise swallow the
+   select's focus border, so make the ring brighter here. */
+[data-bs-theme="dark"] .form-control:focus,
+[data-bs-theme="dark"] .form-select:focus {
+    border-color: #6ea8fe;
+    box-shadow: 0 0 0 0.25rem rgba(110, 168, 254, 0.45);
+}
+
+[data-bs-theme="dark"] .ts-wrapper.form-select.focus .ts-control {
+    border-color: #6ea8fe !important;
+    box-shadow: 0 0 0 0.25rem rgba(110, 168, 254, 0.45);
+}
+
+[data-bs-theme="dark"] #dropzone:focus-within {
+    outline-color: #6ea8fe;
+}
+
 /* Bootstrap's default link blue is only ~4.1:1 on the light background. */
 [data-bs-theme="light"] {
     --bs-link-color-rgb: 10, 88, 202;
