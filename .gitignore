@@ -13,6 +13,8 @@ node_modules/
 /css/select2.min.css
 /js/select2.min.js
 /css/select2-bootstrap-5-theme.min.css
+/css/tom-select.bootstrap5.min.css
+/js/tom-select.min.js
 /js/prism.js
 /js/prism-sql.min.js
 /js/jszip.min.js

@@ -75,6 +75,15 @@ jquery() {
         "js/jquery-4.0.0.slim.min.js"
 }
 
+tom_select() {
+    fetch "https://cdn.jsdelivr.net/npm/tom-select@2.7.0/dist/js/tom-select.complete.min.js" \
+        "5c1315fe8e62c7b9342cbf82c4d5454b83ab97d507a2e9803dbaef72433438bc" \
+        "js/tom-select.min.js"
+    fetch "https://cdn.jsdelivr.net/npm/tom-select@2.7.0/dist/css/tom-select.bootstrap5.min.css" \
+        "4b819a8a46757f55122d93bd7aa2d2018dba6a83466734c5c32322a2b4270353" \
+        "css/tom-select.bootstrap5.min.css"
+}
+
 select2() {
     fetch "https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css" \
         "5d5e14d587308b5d1ad79f51e9aea2f8f469b0a02b335f559f5a4bb756b81737" \
@@ -143,6 +152,7 @@ sqlite_wasm() {
 main() {
     bootstrap
     jquery
+    tom_select
     select2
     select2_bootstrap_theme
     prism
