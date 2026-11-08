@@ -53,8 +53,10 @@
 [data-bs-theme="dark"] .token.operator { color: #ff7b72; }
 [data-bs-theme="dark"] .token.comment { color: #8b949e; }
 
+/* Leave .ts-control transparent (Tom Select forces it so) and let the
+   wrapper's themed background show; making it opaque here hid the .form-select
+   caret that Bootstrap draws on the wrapper behind it. */
 [data-bs-theme="dark"] .ts-wrapper.form-select .ts-control {
-    background-color: #212529 !important;
     border-color: #495057 !important;
     color: #fff !important;
 }
