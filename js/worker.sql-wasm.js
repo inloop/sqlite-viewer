@@ -29,6 +29,7 @@ function openDatabase(buffer) {
 }
 
 // Run one or more SQL statements, returning the first statement's result set.
+// Used for internal queries and CSV export, which need every row at once.
 function runSql(sql) {
     if (!db) db = new sqlite3.oo1.DB();
     if (!sql) throw new Error("exec: Missing query string");
@@ -37,6 +38,85 @@ function runSql(sql) {
     const values = [];
     db.exec({ sql, rowMode: "array", columnNames: columns, resultRows: values });
     return columns.length ? [{ columns, values }] : [];
+}
+
+// Column names, declared types and source table/column, straight from SQLite's
+// statement metadata. Works even for a query that returns no rows, and for
+// expressions (which report no source table / declared type).
+function describeColumns(stmt) {
+    const capi = sqlite3.capi;
+    const columns = [];
+    for (let i = 0; i < stmt.columnCount; i++) {
+        let decltype = "";
+        let table = null;
+        let origin = null;
+        try { decltype = capi.sqlite3_column_decltype(stmt.pointer, i) || ""; } catch (e) { /* expression */ }
+        try { table = capi.sqlite3_column_table_name(stmt.pointer, i); } catch (e) { /* expression */ }
+        try { origin = capi.sqlite3_column_origin_name(stmt.pointer, i); } catch (e) { /* expression */ }
+        columns.push({ name: stmt.getColumnName(i), decltype, table, origin });
+    }
+    return columns;
+}
+
+// Rows changed so far by this connection (monotonic) and the schema cookie.
+// Comparing both around a statement tells us authoritatively whether it
+// changed the database: DML bumps total changes, DDL bumps schema_version.
+function databaseVersion() {
+    return { changes: Number(db.changes(true)), schema: db.selectValue("PRAGMA schema_version") };
+}
+
+// Run one page of a query without ever rewriting the SQL: the statement is
+// stepped and the first `offset` rows are skipped. A single, read-only
+// statement that returns rows can therefore be paged safely (re-running it has
+// no side effects); anything else runs once and reports no further pages.
+function runPage(sql, page, pageSize) {
+    if (!db) db = new sqlite3.oo1.DB();
+    if (!sql || !sql.trim()) throw new Error("Empty query.");
+
+    // Preparing the first statement gives the result columns even when it
+    // yields no rows, and tells us whether paging it is safe.
+    const metaStmt = db.prepare(sql);
+    const columns = describeColumns(metaStmt);
+    const readonly = metaStmt.isReadOnly();
+    metaStmt.finalize();
+
+    const offset = (Math.max(1, page) - 1) * pageSize;
+    const saveSql = [];
+    const values = [];
+    let seen = 0;
+
+    const before = databaseVersion();
+    db.exec({
+        sql,
+        saveSql, // collects each prepared statement's text, so we can count them
+        callback: (row) => {
+            seen++;
+            if (seen <= offset) return true;            // still skipping ahead
+            if (seen > offset + pageSize) return false; // one past the page: stop
+            values.push(row);
+            return true;
+        }
+    });
+    const after = databaseVersion();
+
+    return {
+        columns,
+        values,
+        hasMore: seen > offset + pageSize,
+        statementCount: saveSql.length,
+        paginated: saveSql.length === 1 && columns.length > 0 && readonly,
+        readonly,
+        modified: after.changes > before.changes || after.schema !== before.schema
+    };
+}
+
+// Exact number of rows the query returns (re-runs it; only requested for a
+// single read-only statement).
+function countRows(sql) {
+    if (!db) throw new Error("count: No database is open.");
+    let count = 0;
+    db.exec({ sql, callback: () => { count++; return true; } });
+    return count;
 }
 
 function handleMessage(data) {
@@ -48,6 +128,14 @@ function handleMessage(data) {
 
         case "exec":
             postMessage({ id: data.id, results: runSql(data.sql) });
+            break;
+
+        case "query":
+            postMessage({ id: data.id, ...runPage(data.sql, data.page, data.pageSize) });
+            break;
+
+        case "count":
+            postMessage({ id: data.id, count: countRows(data.sql) });
             break;
 
         case "export": {

@@ -1,41 +1,8 @@
 "use strict";
 
-// Matches the first table reference after a FROM, optionally schema-qualified
-// and quoted with ", ', ` or [ ]. Groups 1-5 capture an optional schema
-// qualifier, groups 6-10 the table name.
-const SQL_FROM_REGEX = /\bFROM\s+(?:(?:"([^"]+)"|'([^']+)'|`([^`]+)`|\[([^\]]+)\]|(\w+))\s*\.\s*)?(?:"([^"]+)"|'([^']+)'|`([^`]+)`|\[([^\]]+)\]|(\w+))/i;
-const SQL_LIMIT_REGEX = /\bLIMIT\s+(\d+)(?:\s*,\s*(\d+)|\s+OFFSET\s+(\d+))?(\s*;?\s*)$/i;
-
-// Leading keyword of a statement that changes the schema or data.
-const MODIFY_STATEMENT_REGEX = /^(?:create|drop|alter|insert|delete|update|replace|vacuum|reindex)\b/i;
-// Leading keyword of a statement that produces a result set.
-const READ_STATEMENT_REGEX = /^(?:select|with|values)\b/i;
-
-// Rows rendered at most for a read query that doesn't specify its own LIMIT.
-const MAX_UNLIMITED_ROWS = 5000;
-
-// Remove leading whitespace and comments so the first keyword can be inspected.
-function stripLeadingComments(query) {
-    return query.replace(/^(?:(?:\s+)|(?:--[^\n]*\n?)|(?:\/\*[\s\S]*?\*\/))+/, "");
-}
-
-// True when the query's first statement modifies the database, so the table
-// list (names and row counts) needs refreshing. Only the leading keyword is
-// inspected, after skipping whitespace and comments, so identifiers or string
-// literals further into the query can't trigger a false positive.
-function modifiesDatabase(query) {
-    return MODIFY_STATEMENT_REGEX.test(stripLeadingComments(query));
-}
-
-// Wrap a read-only, single-statement query with no LIMIT in a capped subquery
-// so a stray "SELECT * FROM huge_table" can't pull and render the whole table.
-function applyRowCap(query) {
-    if (!READ_STATEMENT_REGEX.test(stripLeadingComments(query))) return query;
-    const body = query.trim().replace(/;+$/, "");
-    // Don't wrap multi-statement input, which would be invalid inside a subquery.
-    if (body.includes(";")) return query;
-    return `SELECT * FROM (${body}) LIMIT ${MAX_UNLIMITED_ROWS}`;
-}
+// Rows fetched and rendered per page. The query's SQL is never rewritten to
+// paginate; the worker steps a prepared statement and skips rows instead.
+const PAGE_SIZE = 50;
 
 function quoteIdentifier(name) {
     return '"' + name.replace(/"/g, '""') + '"';
@@ -86,7 +53,8 @@ async function execSql(sql) {
 }
 
 let loadedTableNames = [];
-let lastCachedQueryCount = { db: null, query: "", count: 0 };
+// Which query/page the pager is currently showing, so Next/Prev can step it.
+let viewState = { query: "", page: 1 };
 let currentDbKey = "default";
 let currentDbName = "Default";
 let databaseAltered = false;
@@ -365,50 +333,21 @@ async function getTableRowsCount(name) {
     }
 }
 
-// Strip the trailing LIMIT clause (and any semicolon) so a query can be
-// wrapped in a subquery.
-function stripLimitClause(query) {
-    return query.replace(SQL_LIMIT_REGEX, "$4").trim().replace(/;+$/, "");
-}
-
-// Exact row count for a read query, cached per (database, query). Used to show
-// the page total; callers should not block the render on it.
-async function getQueryRowCount(query) {
-    if (query === lastCachedQueryCount.query && currentDbKey === lastCachedQueryCount.db) {
-        return lastCachedQueryCount.count;
-    }
-    if (!READ_STATEMENT_REGEX.test(stripLeadingComments(query))) return -1;
-
-    const cleanQuery = stripLimitClause(query);
-    if (!cleanQuery) return -1;
-
-    try {
-        const res = await execSql(`SELECT COUNT(*) FROM (${cleanQuery})`);
-        if (!res) return -1;
-        const count = res.values[0][0];
-        lastCachedQueryCount = { db: currentDbKey, query, count };
-        return count;
-    } catch (e) {
-        console.error("Error counting rows:", e);
-        return -1;
-    }
-}
-
-// Map of column name -> { type, constraints }. The declared type is kept
-// separate from the constraint text so callers can use them independently
-// (the header tooltip shows both; blob detection needs the type alone).
-async function getTableColumnTypes(tableName) {
+// Constraint text (NOT NULL / PRIMARY KEY) per column of a source table, from
+// PRAGMA table_info. The declared type comes from the statement metadata, so
+// aliases and expressions are handled consistently; this only adds constraints.
+async function getTableConstraints(tableName) {
     const result = new Map();
     try {
         const res = await execSql(`PRAGMA table_info(${quoteIdentifier(tableName)})`);
         if (res) {
             // PRAGMA table_info returns columns: cid, name, type, notnull, dflt_value, pk
             for (const row of res.values) {
-                const [, name, type, notnull, , pk] = row;
+                const [, name, , notnull, , pk] = row;
                 const constraints = [];
                 if (notnull === 1) constraints.push("NOT NULL");
                 if (pk === 1) constraints.push("PRIMARY KEY");
-                result.set(name, { type: type || "", constraints: constraints.join(" ") });
+                if (constraints.length) result.set(name, constraints.join(" "));
             }
         }
     } catch (e) {
@@ -542,7 +481,7 @@ async function handleZipFile(file) {
 }
 
 async function doDefaultSelect(name) {
-    const defaultSelect = `SELECT * FROM ${quoteIdentifier(name)} LIMIT 0,30`;
+    const defaultSelect = `SELECT * FROM ${quoteIdentifier(name)}`;
     editor.updateCode(defaultSelect);
     await renderQuery(defaultSelect);
 }
@@ -550,14 +489,14 @@ async function doDefaultSelect(name) {
 async function executeSql() {
     const query = editor.toString();
     saveQueryToHistory(query);
-    await renderQuery(query);
+    const result = await renderQuery(query);
 
-    // If the query modifies the database, refresh the dropdown to keep counts/names in sync
-    if (modifiesDatabase(query)) {
-        lastCachedQueryCount = { db: null, query: "", count: 0 };
+    // If the query modified the database, refresh the dropdown to keep
+    // names/counts in sync; otherwise highlight the table it reads from.
+    if (result && result.modified) {
         await populateTableList();
     } else {
-        const tableName = getTableNameFromQuery(query);
+        const tableName = result && result.columns.find(column => column.table)?.table;
         if (tableName && loadedTableNames.includes(tableName)) {
             tableSelect.setValue(tableName, true);
         } else {
@@ -568,58 +507,20 @@ async function executeSql() {
     setHashParam("sql", query);
 }
 
-function getTableNameFromQuery(query) {
-    const match = SQL_FROM_REGEX.exec(query);
-    if (!match) return null;
-    // The table name is the first of the last five groups that participated.
-    return match.slice(6, 11).find(group => group !== undefined) ?? null;
-}
-
-
-function parseLimitFromQuery(query) {
-    const sqlRegex = SQL_LIMIT_REGEX.exec(query);
-    if (sqlRegex === null) return null;
-
-    const result = { max: 0, offset: 0 };
-    if (sqlRegex[3] !== undefined) {
-        // LIMIT <max> OFFSET <offset>
-        result.max = parseInt(sqlRegex[1]);
-        result.offset = parseInt(sqlRegex[3]);
-    } else if (sqlRegex[2] !== undefined) {
-        // LIMIT <offset>, <max>
-        result.offset = parseInt(sqlRegex[1]);
-        result.max = parseInt(sqlRegex[2]);
-    } else {
-        // LIMIT <max>
-        result.max = parseInt(sqlRegex[1]);
-    }
-
-    result.currentPage = result.max > 0 ? Math.floor(result.offset / result.max) + 1 : 0;
-    return result;
-}
-
 async function setPage(el, next) {
     if ($(el).hasClass("disabled")) return;
 
-    const query = editor.toString();
-    const limit = parseLimitFromQuery(query);
-    if (limit === null || limit.max === 0) return;
-
-    // currentPage is 1-based; work in 0-based page indices when computing the offset.
-    let pageIndex;
+    let page;
     if (typeof next !== "undefined") {
-        pageIndex = next ? limit.currentPage : limit.currentPage - 2;
-        if (pageIndex < 0) return;
+        page = next ? viewState.page + 1 : viewState.page - 1;
+        if (page < 1) return;
     } else {
-        const page = Number(await showDialog("Go to page", String(limit.currentPage)));
-        if (!Number.isInteger(page) || page < 1) return;
-        pageIndex = page - 1;
+        const entered = Number(await showDialog("Go to page", String(viewState.page)));
+        if (!Number.isInteger(entered) || entered < 1) return;
+        page = entered;
     }
 
-    const offset = pageIndex * limit.max;
-    editor.updateCode(query.replace(SQL_LIMIT_REGEX, `LIMIT ${offset},${limit.max}$4`));
-
-    await executeSql();
+    await renderQuery(editor.toString(), page);
 }
 
 // Bumped on every render so a late background count can't overwrite a newer page.
@@ -643,24 +544,17 @@ function updatePager(currentPage, { hasNext, totalPages = null, rowCount = 0 }) 
     setPagerVisible(true);
 }
 
-function refreshPagination(query, rowCount) {
+function refreshPagination(query, page, hasMore) {
     const requestId = ++paginationRequest;
-    const limit = parseLimitFromQuery(query);
-    if (limit === null || limit.max === 0) {
-        setPagerVisible(false);
-        return;
-    }
-
-    const currentPage = limit.currentPage;
     // Show the page number right away; assume a next page while this one is full.
-    updatePager(currentPage, { hasNext: rowCount >= limit.max });
+    updatePager(page, { hasNext: hasMore });
 
-    // Fill in the exact total in the background.
-    getQueryRowCount(query).then(count => {
-        if (requestId !== paginationRequest || count < 0) return;
-        const totalPages = Math.max(1, Math.ceil(count / limit.max));
-        updatePager(currentPage, { hasNext: currentPage < totalPages, totalPages, rowCount: count });
-    });
+    // Fill in the exact page total in the background.
+    sendWorkerMessage("count", { sql: query }).then(({ count }) => {
+        if (requestId !== paginationRequest || typeof count !== "number") return;
+        const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+        updatePager(page, { hasNext: page < totalPages, totalPages, rowCount: count });
+    }).catch(() => { /* keep the provisional pager */ });
 }
 
 function showError(msg) {
@@ -781,7 +675,7 @@ function blobCell(bytes) {
     return td;
 }
 
-async function renderQuery(query) {
+async function renderQuery(query, page = 1) {
     const theadRow = document.querySelector("#data thead tr");
     const tbody = document.querySelector("#data tbody");
 
@@ -789,44 +683,44 @@ async function renderQuery(query) {
     infoBox.hide();
     $("#data").show();
 
-    const tableName = getTableNameFromQuery(query);
-    const limit = parseLimitFromQuery(query);
-    const sqlToRun = limit === null ? applyRowCap(query) : query;
-
-    // The column-type lookup and the data query are independent.
-    let columnTypes;
-    let res;
+    let result;
     try {
-        [columnTypes, res] = await Promise.all([
-            tableName != null ? getTableColumnTypes(tableName) : Promise.resolve(new Map()),
-            execSql(sqlToRun)
-        ]);
+        result = await sendWorkerMessage("query", { sql: query, page, pageSize: PAGE_SIZE });
     } catch (ex) {
         theadRow.replaceChildren();
         tbody.replaceChildren();
+        setPagerVisible(false);
         showError(ex.message || ex);
-        return;
+        return null;
     }
 
-    if (res) {
-        const columnNames = res.columns;
+    const { columns, values } = result;
+
+    if (columns.length) {
+        // Constraints come from PRAGMA table_info, looked up once per source
+        // table; the declared type comes from the statement metadata.
+        const tables = [...new Set(columns.map(column => column.table).filter(Boolean))];
+        const constraints = new Map();
+        await Promise.all(tables.map(async (table) => {
+            constraints.set(table, await getTableConstraints(table));
+        }));
 
         // Build everything off-DOM and insert in one pass: appending each row
         // to a live <tbody> would invalidate layout once per row.
         const headerFragment = document.createDocumentFragment();
-        for (const columnName of columnNames) {
-            const info = columnTypes.get(columnName);
-            const headerType = info ? [info.type, info.constraints].filter(Boolean).join(" ") : "";
-            headerFragment.append(headerCell(columnName, headerType));
+        for (const column of columns) {
+            const perTable = column.table ? constraints.get(column.table) : null;
+            const constraint = perTable && column.origin ? perTable.get(column.origin) : "";
+            const headerType = [column.decltype, constraint].filter(Boolean).join(" ");
+            headerFragment.append(headerCell(column.name, headerType));
         }
         theadRow.replaceChildren(headerFragment);
 
         const bodyFragment = document.createDocumentFragment();
-        for (const rowValues of res.values) {
+        for (const rowValues of values) {
             const tr = document.createElement("tr");
             for (let i = 0; i < rowValues.length; i++) {
-                const info = columnTypes.get(columnNames[i]);
-                const columnType = info ? info.type.toLowerCase() : "";
+                const columnType = (columns[i].decltype || "").toLowerCase();
                 const value = rowValues[i];
                 if (columnType === "blob" || columnType === "blob sub_type binary") {
                     tr.append(value === null ? nullBlobCell() : blobCell(value));
@@ -837,11 +731,6 @@ async function renderQuery(query) {
             bodyFragment.append(tr);
         }
         tbody.replaceChildren(bodyFragment);
-
-        if (limit === null && res.values.length >= MAX_UNLIMITED_ROWS) {
-            infoBox.text(`Showing the first ${MAX_UNLIMITED_ROWS} rows. Add a LIMIT clause to browse further.`);
-            infoBox.show();
-        }
     } else {
         theadRow.replaceChildren();
         tbody.replaceChildren();
@@ -849,13 +738,19 @@ async function renderQuery(query) {
         infoBox.show();
     }
 
-    refreshPagination(query, res ? res.values.length : 0);
+    if (result.paginated) {
+        viewState = { query, page };
+        refreshPagination(query, page, result.hasMore);
+    } else {
+        viewState = { query: "", page: 1 };
+        setPagerVisible(false);
+    }
 
     document.querySelectorAll('[data-bs-toggle="tooltip"]')
         .forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
 
-    // A successfully executed modifying statement changes the in-memory database.
-    if (modifiesDatabase(query)) markDatabaseAltered();
+    if (result.modified) markDatabaseAltered();
+    return result;
 }
 
 function formatBytes(bytes,decimals) {
@@ -997,7 +892,8 @@ async function exportQueryTableToCsv() {
     const exportedRows = await exportCsvTableQuery(query);
     if (exportedRows != null) {
         const blob = new Blob([arrayToCsv(exportedRows)], {type: "text/plain;charset=utf-8"});
-        saveAs(blob, "exported_" + getTableNameFromQuery(query).toLowerCase() + "_db.csv");
+        // The query need not target a single table, so name the file after the DB.
+        saveAs(blob, databaseFileName(".csv"));
     }
 
     setIsLoading(false);
@@ -1024,9 +920,6 @@ function getQueryHistory() {
 
 function saveQueryToHistory(sql) {
     if (!sql || sql.trim() === "" || currentDbKey === "default") return;
-    
-    // Skip auto-generated pagination count queries
-    if (/^\s*SELECT\s+COUNT\(\*\)\s+(AS\s+\w+\s+)?FROM/i.test(sql)) return;
 
     let historyList = getQueryHistory();
     
