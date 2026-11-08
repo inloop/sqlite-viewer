@@ -187,7 +187,7 @@ async function loadRemoteDB(urlStr) {
         setHashParam("url", urlStr);
     } catch (err) {
         setIsLoading(false);
-        window.alert("Error loading remote database: " + err.message);
+        showErrorMessage("Error loading remote database: " + err.message);
     }
 }
 
@@ -224,7 +224,7 @@ async function loadDB(arrayBuffer) {
         $("#dropzone").css("height", "75px");
 
     } catch (ex) {
-        window.alert(ex.message || ex);
+        showErrorMessage(ex.message || ex);
     } finally {
         setIsLoading(false);
     }
@@ -422,7 +422,7 @@ function handleFile(file) {
         };
         reader.onerror = function () {
             setIsLoading(false);
-            window.alert("Error reading file.");
+            showErrorMessage("Error reading file.");
         };
         reader.readAsArrayBuffer(file);
     }
@@ -459,7 +459,7 @@ async function handleZipFile(file) {
 
     } catch (err) {
         setIsLoading(false);
-        window.alert(err.message || err);
+        showErrorMessage(err.message || err);
     }
 }
 
@@ -546,7 +546,7 @@ async function setPage(el, next) {
     if (typeof next !== "undefined") {
         pageIndex = next ? limit.currentPage : limit.currentPage - 2;
     } else {
-        const page = Number(window.prompt("Go to page"));
+        const page = Number(await showDialog("Go to page", String(limit.currentPage)));
         if (!Number.isInteger(page) || page < 1 || page > limit.pages) {
             return;
         }
@@ -593,6 +593,59 @@ function showError(msg) {
     setPagerVisible(false);
     errorBox.show();
     errorBox.text(msg);
+}
+
+// Report a fatal error (e.g. a failed load) in the in-page error box.
+function showErrorMessage(msg) {
+    $("#output-box").show();
+    showError(msg);
+}
+
+// Small modal used in place of window.confirm/window.prompt. Without a default
+// value it resolves true/false; with one it resolves the entered string, or
+// null when cancelled.
+function showDialog(message, defaultValue) {
+    return new Promise((resolve) => {
+        const modalEl = document.getElementById("app-dialog");
+        const input = document.getElementById("app-dialog-input");
+        const okButton = document.getElementById("app-dialog-ok");
+        const isPrompt = defaultValue !== undefined;
+
+        document.getElementById("app-dialog-message").textContent = message;
+        input.classList.toggle("d-none", !isPrompt);
+        input.value = isPrompt ? defaultValue : "";
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        let result = isPrompt ? null : false;
+
+        function onKeyDown(event) {
+            if (event.key === "Enter") {
+                result = isPrompt ? input.value : true;
+                modal.hide();
+            }
+        }
+        function onOk() {
+            result = isPrompt ? input.value : true;
+            modal.hide();
+        }
+        function onHidden() {
+            okButton.removeEventListener("click", onOk);
+            input.removeEventListener("keydown", onKeyDown);
+            resolve(result);
+        }
+
+        okButton.addEventListener("click", onOk);
+        input.addEventListener("keydown", onKeyDown);
+        modalEl.addEventListener("hidden.bs.modal", onHidden, { once: true });
+
+        modal.show();
+        if (isPrompt) {
+            modalEl.addEventListener("shown.bs.modal", () => {
+                input.focus();
+                input.select();
+            }, { once: true });
+        }
+    });
 }
 
 function setPagerVisible(visible) {
@@ -855,15 +908,15 @@ function saveQueryToHistory(sql) {
     renderQueryHistory();
 }
 
-function clearQueryHistory() {
-    if (confirm("Are you sure you want to clear history for this database?")) {
+async function clearQueryHistory() {
+    if (await showDialog("Are you sure you want to clear history for this database?")) {
         localStorage.removeItem(getActiveStorageKey());
         renderQueryHistory();
     }
 }
 
-function clearAllDatabasesHistory() {
-    if (confirm("This will permanently delete query histories for ALL databases. Proceed?")) {
+async function clearAllDatabasesHistory() {
+    if (await showDialog("This will permanently delete query histories for ALL databases. Proceed?")) {
         Object.keys(localStorage)
             .filter(key => key.startsWith(HISTORY_PREFIX))
             .forEach(key => localStorage.removeItem(key));

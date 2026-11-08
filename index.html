@@ -164,6 +164,25 @@
     </div>
 </div>
 
+<div class="modal fade" id="app-dialog" tabindex="-1" aria-labelledby="app-dialog-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="app-dialog-title">SQLite Viewer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0" id="app-dialog-message"></p>
+                <input type="text" class="form-control mt-3 d-none" id="app-dialog-input">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="app-dialog-ok">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <template id="tmpl-history-card">
     <div class="card shadow-sm border-0 border-start border-3 border-primary query-card">
         <div class="card-body p-2 d-flex flex-column gap-1">
