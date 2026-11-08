@@ -51,7 +51,7 @@ async function execSql(sql) {
     return results && results.length ? results[0] : null;
 }
 
-let lastCachedQueryCount = { select: "", count: 0 };
+let lastCachedQueryCount = { db: null, select: "", count: 0 };
 let loadedTableNames = [];
 let currentDbKey = "default";
 let editor = null;
@@ -237,7 +237,7 @@ async function getTableRowsCount(name) {
 }
 
 async function getQueryRowCount(query) {
-    if (query === lastCachedQueryCount.select) {
+    if (query === lastCachedQueryCount.select && currentDbKey === lastCachedQueryCount.db) {
         return lastCachedQueryCount.count;
     }
 
@@ -252,8 +252,7 @@ async function getQueryRowCount(query) {
             const res = await execSql(countQuery);
             if (res) {
                 const count = res.values[0][0];
-                lastCachedQueryCount.select = query;
-                lastCachedQueryCount.count = count;
+                lastCachedQueryCount = { db: currentDbKey, select: query, count };
                 return count;
             }
             return -1;
@@ -434,7 +433,7 @@ async function executeSql() {
     // If query creates, drops, alters, or modifies data, refresh the dropdown to keep counts/names in sync
     const SCHEMA_MODIFY_REGEX = /\b(create|drop|alter|insert|delete|update|replace)\b/i;
     if (SCHEMA_MODIFY_REGEX.test(query)) {
-        lastCachedQueryCount = { select: "", count: 0 };
+        lastCachedQueryCount = { db: null, select: "", count: 0 };
         await populateTableList();
     } else {
         const tableName = getTableNameFromQuery(query);
