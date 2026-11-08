@@ -41,6 +41,12 @@ function sendWorkerMessage(action, payload = {}, transferables = []) {
     });
 }
 
+// Run a query and return its first result set ({columns, values}), or null.
+async function execSql(sql) {
+    const { results } = await sendWorkerMessage("exec", { sql });
+    return results && results.length ? results[0] : null;
+}
+
 let lastCachedQueryCount = { select: "", count: 0 };
 let loadedTableNames = [];
 let currentDbKey = "default";
@@ -189,18 +195,12 @@ async function populateTableList(selectFirst = false) {
     tableList.append("<option></option>");
 
     try {
-        const masterResults = await sendWorkerMessage("exec", {
-            sql: "SELECT name, type FROM sqlite_master WHERE type='table' OR type='view' ORDER BY name"
-        });
+        const res = await execSql("SELECT name, type FROM sqlite_master WHERE type='table' OR type='view' ORDER BY name");
 
         let firstTableName = null;
 
-        if (masterResults.results && masterResults.results.length > 0) {
-            const rows = masterResults.results[0].values;
-            for (let i = 0; i < rows.length; i++) {
-                const name = rows[i][0];
-                const type = rows[i][1];
-
+        if (res) {
+            for (const [name, type] of res.values) {
                 if (firstTableName === null) {
                     firstTableName = name;
                 }
@@ -231,13 +231,8 @@ async function populateTableList(selectFirst = false) {
 
 async function getTableRowsCount(name) {
     try {
-        const results = await sendWorkerMessage("exec", {
-            sql: `SELECT COUNT(*) AS count FROM ${quoteIdentifier(name)}`
-        });
-        if (results.results && results.results.length > 0) {
-            return results.results[0].values[0][0];
-        }
-        return -1;
+        const res = await execSql(`SELECT COUNT(*) AS count FROM ${quoteIdentifier(name)}`);
+        return res ? res.values[0][0] : -1;
     } catch (e) {
         console.error(e);
         return -1;
@@ -257,9 +252,9 @@ async function getQueryRowCount(query) {
 
         const countQuery = `SELECT COUNT(*) AS count FROM (${cleanQuery})`;
         try {
-            const results = await sendWorkerMessage("exec", { sql: countQuery });
-            if (results.results && results.results.length > 0) {
-                const count = results.results[0].values[0][0];
+            const res = await execSql(countQuery);
+            if (res) {
+                const count = res.values[0][0];
                 lastCachedQueryCount.select = query;
                 lastCachedQueryCount.count = count;
                 return count;
@@ -277,11 +272,9 @@ async function getQueryRowCount(query) {
 async function getTableColumnTypes(tableName) {
     let result = new Map();
     try {
-        const results = await sendWorkerMessage("exec", {
-            sql: `PRAGMA table_info(${quoteIdentifier(tableName)})`
-        });
-        if (results.results && results.results.length > 0) {
-            const rows = results.results[0].values;
+        const res = await execSql(`PRAGMA table_info(${quoteIdentifier(tableName)})`);
+        if (res) {
+            const rows = res.values;
             // PRAGMA table_info returns columns: cid, name, type, notnull, dflt_value, pk
             for (let i = 0; i < rows.length; i++) {
                 const name = rows[i][1];
@@ -599,9 +592,9 @@ async function renderQuery(query) {
         columnTypes = await getTableColumnTypes(tableName);
     }
 
-    let results;
+    let res;
     try {
-        results = await sendWorkerMessage("exec", { sql: query });
+        res = await execSql(query);
     } catch (ex) {
         showError(ex.message || ex);
         return;
@@ -609,9 +602,8 @@ async function renderQuery(query) {
 
     let isEmptyTable = true;
 
-    if (results.results && results.results.length > 0) {
+    if (res) {
         isEmptyTable = false;
-        const res = results.results[0];
         const columnNames = res.columns;
         const values = res.values;
 
@@ -695,9 +687,8 @@ function arrayToCsv(data) {
 async function exportCsvTableQuery(query) {
     let exportedRows = [];
     try {
-        const results = await sendWorkerMessage("exec", { sql: query });
-        if (results.results && results.results.length > 0) {
-            const res = results.results[0];
+        const res = await execSql(query);
+        if (res) {
             exportedRows.push(res.columns);
             exportedRows.push(...res.values);
         }
