@@ -94,6 +94,12 @@ jszip() {
         "js/jszip.min.js"
 }
 
+filesaver() {
+    fetch "https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js" \
+        "c68874cbaa2fd1650b7d770b328680ea765fb3376023cc3608427fde4f0d0481" \
+        "js/FileSaver.min.js"
+}
+
 main() {
     bootstrap
     jquery
@@ -101,6 +107,7 @@ main() {
     select2_bootstrap_theme
     prism
     jszip
+    filesaver
     echo "All external assets downloaded successfully."
 }
 

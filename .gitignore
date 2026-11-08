@@ -16,3 +16,4 @@ node_modules/
 /js/prism.js
 /js/prism-sql.min.js
 /js/jszip.min.js
+/js/FileSaver.min.js
