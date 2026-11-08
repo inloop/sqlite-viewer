@@ -53,21 +53,15 @@ const errorBox = $("#error");
 const infoBox = $("#info");
 const hashParams = new URLSearchParams(window.location.hash.substring(1));
 
-function updateHashSql(query) {
-    hashParams.set("sql", query);
-    history.replaceState(null, null, `#${hashParams.toString()}`);
-}
-
-function updateHashUrl(urlStr) {
-    hashParams.set("url", urlStr);
-    history.replaceState(null, null, `#${hashParams.toString()}`);
-}
-
-function clearHashUrl() {
-    if (hashParams.has("url")) {
-        hashParams.delete("url");
-        history.replaceState(null, null, `#${hashParams.toString()}`);
+// Set (or, with a null value, remove) a hash parameter and sync the URL.
+function setHashParam(key, value) {
+    if (value == null) {
+        if (!hashParams.has(key)) return;
+        hashParams.delete(key);
+    } else {
+        hashParams.set(key, value);
     }
+    history.replaceState(null, null, `#${hashParams.toString()}`);
 }
 
 const selectFormatter = function (item) {
@@ -142,7 +136,7 @@ async function loadRemoteDB(urlStr) {
         } else {
             await loadDB(buffer);
         }
-        updateHashUrl(urlStr);
+        setHashParam("url", urlStr);
     } catch (err) {
         setIsLoading(false);
         window.alert("Error loading remote database: " + err.message);
@@ -399,7 +393,7 @@ function setupDragAndDrop() {
 }
 
 function handleFile(file) {
-    clearHashUrl();
+    setHashParam("url", null);
     if (file.name.endsWith(".zip")) {
         handleZipFile(file);
     } else {
@@ -470,7 +464,7 @@ async function executeSql() {
         $("#tables").val(getTableNameFromQuery(query)).trigger("change.select2");
     }
 
-    updateHashSql(query);
+    setHashParam("sql", query);
 }
 
 function getTableNameFromQuery(query) {
