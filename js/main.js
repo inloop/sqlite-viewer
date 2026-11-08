@@ -595,11 +595,7 @@ function showError(msg) {
 
 function setPagerVisible(visible) {
     $("#bottom-bar").toggleClass("d-none", !visible);
-    if (visible) {
-        $("#footer").attr("style", "margin-top: -0.75rem !important");
-    } else {
-        $("#footer").css("margin-top", "");
-    }
+    $("#footer").toggleClass("with-pager", visible);
 }
 
 // --- View builders ---

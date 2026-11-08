@@ -85,6 +85,12 @@
     transition: opacity 0.5s ease;
 }
 
+/* Pull the footer closer to the table while the pager is visible.
+   !important is needed to beat the Bootstrap my-1 utility on #footer. */
+#footer.with-pager {
+    margin-top: -0.75rem !important;
+}
+
 #sql-editor {
     height: 120px;
     font-family: var(--bs-font-monospace), monospace;
