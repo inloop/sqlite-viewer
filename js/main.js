@@ -66,7 +66,6 @@ async function execSql(sql) {
     return results && results.length ? results[0] : null;
 }
 
-let lastCachedQueryCount = { db: null, select: "", count: 0 };
 let loadedTableNames = [];
 let currentDbKey = "default";
 let currentDbName = "Default";
@@ -325,32 +324,23 @@ async function getTableRowsCount(name) {
     }
 }
 
-async function getQueryRowCount(query) {
-    if (query === lastCachedQueryCount.select && currentDbKey === lastCachedQueryCount.db) {
-        return lastCachedQueryCount.count;
-    }
+// Strip the trailing LIMIT clause (and any semicolon) so a query can be
+// wrapped in a subquery.
+function stripLimitClause(query) {
+    return query.replace(SQL_LIMIT_REGEX, "$4").trim().replace(/;+$/, "");
+}
 
-    if (/^\s*SELECT\b/i.test(query)) {
-        // Strip the outermost trailing LIMIT clause if it exists
-        let cleanQuery = query.replace(SQL_LIMIT_REGEX, "$4");
-        // Strip any trailing semicolons which are invalid inside subqueries
-        cleanQuery = cleanQuery.trim().replace(/;+$/, "");
-
-        const countQuery = `SELECT COUNT(*) AS count FROM (${cleanQuery})`;
-        try {
-            const res = await execSql(countQuery);
-            if (res) {
-                const count = res.values[0][0];
-                lastCachedQueryCount = { db: currentDbKey, select: query, count };
-                return count;
-            }
-            return -1;
-        } catch (e) {
-            console.error("Error executing count query:", e);
-            return -1;
-        }
-    } else {
-        return -1;
+// True when the query has at least one row beyond the current page. Cheaper
+// than counting: it stops as soon as the extra row is found.
+async function hasMoreRows(query, limit) {
+    const cleanQuery = stripLimitClause(query);
+    if (!cleanQuery) return false;
+    try {
+        const res = await execSql(`SELECT 1 FROM (${cleanQuery}) LIMIT 1 OFFSET ${limit.offset + limit.max}`);
+        return !!res;
+    } catch (e) {
+        console.error("Error checking for more rows:", e);
+        return false;
     }
 }
 
@@ -518,7 +508,6 @@ async function executeSql() {
 
     // If the query modifies the database, refresh the dropdown to keep counts/names in sync
     if (modifiesDatabase(query)) {
-        lastCachedQueryCount = { db: null, select: "", count: 0 };
         await populateTableList();
     } else {
         const tableName = getTableNameFromQuery(query);
@@ -539,59 +528,43 @@ function getTableNameFromQuery(query) {
     return match.slice(6, 11).find(group => group !== undefined) ?? null;
 }
 
-async function parseLimitFromQuery(query) {
+function parseLimitFromQuery(query) {
     const sqlRegex = SQL_LIMIT_REGEX.exec(query);
-    if (sqlRegex != null) {
-        let result = { max: 0, offset: 0 };
+    if (sqlRegex === null) return null;
 
-        if (sqlRegex[3] !== undefined) {
-            // LIMIT <max> OFFSET <offset>
-            result.max = parseInt(sqlRegex[1]);
-            result.offset = parseInt(sqlRegex[3]);
-        } else if (sqlRegex[2] !== undefined) {
-            // LIMIT <offset>, <max>
-            result.offset = parseInt(sqlRegex[1]);
-            result.max = parseInt(sqlRegex[2]);
-        } else {
-            // LIMIT <max>
-            result.offset = 0;
-            result.max = parseInt(sqlRegex[1]);
-        }
-
-        if (result.max === 0) {
-            result.pages = 0;
-            result.currentPage = 0;
-            return result;
-        }
-
-        const queryRowsCount = await getQueryRowCount(query);
-        if (queryRowsCount !== -1) {
-            result.pages = Math.ceil(queryRowsCount / result.max);
-        }
-        result.currentPage = Math.floor(result.offset / result.max) + 1;
-        result.rowCount = queryRowsCount;
-
-        return result;
+    const result = { max: 0, offset: 0 };
+    if (sqlRegex[3] !== undefined) {
+        // LIMIT <max> OFFSET <offset>
+        result.max = parseInt(sqlRegex[1]);
+        result.offset = parseInt(sqlRegex[3]);
+    } else if (sqlRegex[2] !== undefined) {
+        // LIMIT <offset>, <max>
+        result.offset = parseInt(sqlRegex[1]);
+        result.max = parseInt(sqlRegex[2]);
     } else {
-        return null;
+        // LIMIT <max>
+        result.max = parseInt(sqlRegex[1]);
     }
+
+    result.currentPage = result.max > 0 ? Math.floor(result.offset / result.max) + 1 : 0;
+    return result;
 }
 
 async function setPage(el, next) {
     if ($(el).hasClass("disabled")) return;
 
     const query = editor.toString();
-    const limit = await parseLimitFromQuery(query);
+    const limit = parseLimitFromQuery(query);
+    if (limit === null || limit.max === 0) return;
 
     // currentPage is 1-based; work in 0-based page indices when computing the offset.
     let pageIndex;
     if (typeof next !== "undefined") {
         pageIndex = next ? limit.currentPage : limit.currentPage - 2;
+        if (pageIndex < 0) return;
     } else {
         const page = Number(await showDialog("Go to page", String(limit.currentPage)));
-        if (!Number.isInteger(page) || page < 1 || page > limit.pages) {
-            return;
-        }
+        if (!Number.isInteger(page) || page < 1) return;
         pageIndex = page - 1;
     }
 
@@ -601,33 +574,26 @@ async function setPage(el, next) {
     await executeSql();
 }
 
-async function refreshPagination(query) {
-    const limit = await parseLimitFromQuery(query);
-    if (limit !== null && limit.pages > 0) {
-        const pager = $("#pager");
-        const pagePrev = $("#page-prev");
-        const pageNext = $("#page-next");
-
-        pager.attr("title", `Row count: ${limit.rowCount}`);
-        bootstrap.Tooltip.getOrCreateInstance("#pager").hide();
-        pager.text(limit.currentPage + " / " + limit.pages);
-
-        if (limit.currentPage <= 1) {
-            pagePrev.addClass("disabled");
-        } else {
-            pagePrev.removeClass("disabled");
-        }
-
-        if ((limit.currentPage + 1) > limit.pages) {
-            pageNext.addClass("disabled");
-        } else {
-            pageNext.removeClass("disabled");
-        }
-
-        setPagerVisible(true);
-    } else {
+async function refreshPagination(query, rowCount) {
+    const limit = parseLimitFromQuery(query);
+    if (limit === null || limit.max === 0) {
         setPagerVisible(false);
+        return;
     }
+
+    const currentPage = limit.currentPage;
+    // A page that wasn't full is always the last one; only probe when it is.
+    const hasNext = rowCount >= limit.max && await hasMoreRows(query, limit);
+
+    const pager = $("#pager");
+    pager.attr("title", `Page ${currentPage}`);
+    bootstrap.Tooltip.getOrCreateInstance("#pager").hide();
+    pager.text(String(currentPage));
+
+    $("#page-prev").toggleClass("disabled", currentPage <= 1);
+    $("#page-next").toggleClass("disabled", !hasNext);
+
+    setPagerVisible(true);
 }
 
 function showError(msg) {
@@ -809,7 +775,7 @@ async function renderQuery(query) {
         infoBox.show();
     }
 
-    await refreshPagination(query);
+    await refreshPagination(query, res ? res.values.length : 0);
 
     document.querySelectorAll('[data-bs-toggle="tooltip"]')
         .forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
