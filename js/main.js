@@ -912,8 +912,8 @@ async function exportCsvTable(tableName) {
 // fflate's async API is callback-based; wrap it in a promise.
 function zipFiles(files) {
     return new Promise((resolve, reject) => {
-        // level 0 = STORE, matching the previous (uncompressed) zip export.
-        fflate.zip(files, { level: 0 }, (err, data) => (err ? reject(err) : resolve(data)));
+        // level 6 = DEFLATE: much smaller CSV exports for a little CPU.
+        fflate.zip(files, { level: 6 }, (err, data) => (err ? reject(err) : resolve(data)));
     });
 }
 
