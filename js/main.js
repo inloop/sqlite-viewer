@@ -412,7 +412,8 @@ async function handleZipFile(file) {
 
         let dbFile = null;
         zip.forEach((relativePath, zipEntry) => {
-            if (!zipEntry.dir && (
+            // Take the first database entry so the choice is deterministic.
+            if (!dbFile && !zipEntry.dir && (
                 relativePath.endsWith(".sqlite") ||
                 relativePath.endsWith(".db") ||
                 relativePath.endsWith(".db3") ||
