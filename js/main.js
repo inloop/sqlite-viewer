@@ -578,10 +578,6 @@ function setPagerVisible(visible) {
     }
 }
 
-function htmlEncode(value) {
-    return $("<div/>").text(value).html();
-}
-
 async function renderQuery(query) {
     const dataBox = $("#data");
     const thead = dataBox.find("thead").find("tr");
@@ -617,24 +613,25 @@ async function renderQuery(query) {
         for (let i = 0; i < columnNames.length; i++) {
             const columnName = columnNames[i];
             const type = columnTypes.has(columnName) ? columnTypes.get(columnName) : "";
-            thead.append(`<th><span data-bs-toggle="tooltip" title="${type}">${columnName}</span></th>`);
+            const span = $("<span>").attr("data-bs-toggle", "tooltip").attr("title", type).text(columnName);
+            thead.append($("<th>").append(span));
         }
 
         for (let r = 0; r < values.length; r++) {
-            const tr = $('<tr>');
+            const tr = $("<tr>");
             const rowValues = values[r];
             for (let i = 0; i < rowValues.length; i++) {
                 const columnName = columnNames[i];
                 const type = columnTypes.has(columnName) ? columnTypes.get(columnName).toLowerCase() : "";
                 if (type === "blob" || type === "blob sub_type binary") {
                     if (rowValues[i] === null) {
-                        tr.append(`<td><span title="Blob">null</span></td>`);
+                        tr.append($("<td>").append($("<span>").attr("title", "Blob").text("null")));
                     } else {
                         renderBlobItem(tr, rowValues[i]);
                     }
                 } else {
-                    let value = htmlEncode(rowValues[i]);
-                    tr.append(`<td><span title="${value}">${value}</span></td>`);
+                    const text = String(rowValues[i]);
+                    tr.append($("<td>").append($("<span>").attr("title", text).text(text)));
                 }
             }
             tbody.append(tr);
