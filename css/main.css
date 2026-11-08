@@ -1,76 +1,83 @@
-@media (prefers-color-scheme: light) {
-    body {
-        background: #f5f5f5;
-    }
-
-    .drag {
-        background-color: lightblue;
-    }
-
-    #header {
-        background: #A0CFFF;
-        color: #3474A8;
-    }
-
-    .table-hover tbody tr:hover td, .table-hover tbody tr:hover th {
-        background-color: #F5F5E7;
-    }
-
-    /* Prism Light Mode Token Colors */
-    .token.keyword { color: #0033cc; font-weight: bold; }
-    .token.string { color: #036a3e; }
-    .token.number { color: #a626a4; }
-    .token.punctuation { color: #383a42; }
-    .token.operator { color: #0184a6; }
-    .token.comment { color: #a0a1a7; }
+/* Theme colors follow <html data-bs-theme>, which theme.js sets to "light" or
+   "dark" (resolving the "system" preference against prefers-color-scheme). */
+[data-bs-theme="light"] body {
+    background: #f5f5f5;
 }
 
-@media (prefers-color-scheme: dark) {
-    body {
-        background: #000;
-    }
+[data-bs-theme="light"] .drag {
+    background-color: lightblue;
+}
 
-    .drag {
-        background-color: #1e3a5f;
-    }
+/* Dark header bar with light text in both themes; a touch lighter in light mode. */
+[data-bs-theme="light"] #header {
+    background: #1b4f8a;
+    color: #fff;
+}
 
-    #header {
-        background: #0d3b66;
-        color: #7ab5e6;
-    }
+[data-bs-theme="light"] .table-hover tbody tr:hover td,
+[data-bs-theme="light"] .table-hover tbody tr:hover th {
+    background-color: #F5F5E7;
+}
 
-    .table-hover tbody tr:hover td, .table-hover tbody tr:hover th {
-        background-color: #2c2c1e;
-    }
+/* Prism light-mode token colors */
+[data-bs-theme="light"] .token.keyword { color: #0033cc; font-weight: bold; }
+[data-bs-theme="light"] .token.string { color: #036a3e; }
+[data-bs-theme="light"] .token.number { color: #a626a4; }
+[data-bs-theme="light"] .token.punctuation { color: #383a42; }
+[data-bs-theme="light"] .token.operator { color: #0184a6; }
+[data-bs-theme="light"] .token.comment { color: #a0a1a7; }
 
-    /* Prism Dark Mode Token Colors */
-    .token.keyword { color: #c5a3ff !important; font-weight: bold; }
-    .token.string { color: #a8df8e !important; }
-    .token.number { color: #7ec8e3 !important; }
-    .token.punctuation { color: #ccc; }
-    .token.operator { color: #ff7b72; }
-    .token.comment { color: #8b949e; }
+[data-bs-theme="dark"] body {
+    background: #000;
+}
 
-    .ts-wrapper.form-select .ts-control {
-        background-color: #212529 !important;
-        border-color: #495057 !important;
-        color: #fff !important;
-    }
+[data-bs-theme="dark"] .drag {
+    background-color: #1e3a5f;
+}
 
-    .ts-dropdown,
-    .ts-dropdown.form-select {
-        background-color: #212529 !important;
-        border-color: #495057 !important;
-    }
+[data-bs-theme="dark"] #header {
+    background: #0d3b66;
+    color: #7ab5e6;
+}
 
-    .ts-dropdown .active {
-        background-color: #0d6efd !important;
-        color: #fff !important;
-    }
+[data-bs-theme="dark"] .table-hover tbody tr:hover td,
+[data-bs-theme="dark"] .table-hover tbody tr:hover th {
+    background-color: #2c2c1e;
+}
 
-    .ts-control > input {
-        color: #fff !important;
-    }
+/* Prism dark-mode token colors */
+[data-bs-theme="dark"] .token.keyword { color: #c5a3ff !important; font-weight: bold; }
+[data-bs-theme="dark"] .token.string { color: #a8df8e !important; }
+[data-bs-theme="dark"] .token.number { color: #7ec8e3 !important; }
+[data-bs-theme="dark"] .token.punctuation { color: #ccc; }
+[data-bs-theme="dark"] .token.operator { color: #ff7b72; }
+[data-bs-theme="dark"] .token.comment { color: #8b949e; }
+
+[data-bs-theme="dark"] .ts-wrapper.form-select .ts-control {
+    background-color: #212529 !important;
+    border-color: #495057 !important;
+    color: #fff !important;
+}
+
+[data-bs-theme="dark"] .ts-dropdown,
+[data-bs-theme="dark"] .ts-dropdown.form-select {
+    background-color: #212529 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .ts-dropdown .active {
+    background-color: #0d6efd !important;
+    color: #fff !important;
+}
+
+[data-bs-theme="dark"] .ts-control > input {
+    color: #fff !important;
+}
+
+/* Header links/icons inherit the header text color; without this the resizer
+   anchor takes Bootstrap's default link color instead. */
+#header a {
+    color: inherit;
 }
 
 #dropzone {
@@ -141,8 +148,6 @@
 }
 
 /* Make sure dark mode handles brightness correctly */
-@media (prefers-color-scheme: dark) {
-    .query-card pre:hover {
-        filter: brightness(1.15);
-    }
+[data-bs-theme="dark"] .query-card pre:hover {
+    filter: brightness(1.15);
 }
