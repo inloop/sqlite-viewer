@@ -642,7 +642,7 @@ async function renderQuery(query) {
     await refreshPagination(query);
 
     document.querySelectorAll('[data-bs-toggle="tooltip"]')
-        .forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        .forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
 }
 
 function renderBlobItem(tr, bytes) {
