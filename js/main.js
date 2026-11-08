@@ -265,26 +265,21 @@ async function getQueryRowCount(query) {
     }
 }
 
+// Map of column name -> { type, constraints }. The declared type is kept
+// separate from the constraint text so callers can use them independently
+// (the header tooltip shows both; blob detection needs the type alone).
 async function getTableColumnTypes(tableName) {
-    let result = new Map();
+    const result = new Map();
     try {
         const res = await execSql(`PRAGMA table_info(${quoteIdentifier(tableName)})`);
         if (res) {
-            const rows = res.values;
             // PRAGMA table_info returns columns: cid, name, type, notnull, dflt_value, pk
-            for (let i = 0; i < rows.length; i++) {
-                const name = rows[i][1];
-                let type = rows[i][2];
-                const notnull = rows[i][3];
-                const pk = rows[i][5];
-
-                if (notnull === 1) {
-                    type += " NOT NULL";
-                }
-                if (pk === 1) {
-                    type += " PRIMARY KEY";
-                }
-                result.set(name, type);
+            for (const row of res.values) {
+                const [, name, type, notnull, , pk] = row;
+                const constraints = [];
+                if (notnull === 1) constraints.push("NOT NULL");
+                if (pk === 1) constraints.push("PRIMARY KEY");
+                result.set(name, { type: type || "", constraints: constraints.join(" ") });
             }
         }
     } catch (e) {
@@ -630,8 +625,9 @@ async function renderQuery(query) {
 
         for (let i = 0; i < columnNames.length; i++) {
             const columnName = columnNames[i];
-            const type = columnTypes.has(columnName) ? columnTypes.get(columnName) : "";
-            thead.append(headerCell(columnName, type));
+            const info = columnTypes.get(columnName);
+            const headerType = info ? [info.type, info.constraints].filter(Boolean).join(" ") : "";
+            thead.append(headerCell(columnName, headerType));
         }
 
         for (let r = 0; r < values.length; r++) {
@@ -639,8 +635,9 @@ async function renderQuery(query) {
             const rowValues = values[r];
             for (let i = 0; i < rowValues.length; i++) {
                 const columnName = columnNames[i];
-                const type = columnTypes.has(columnName) ? columnTypes.get(columnName).toLowerCase() : "";
-                if (type === "blob" || type === "blob sub_type binary") {
+                const info = columnTypes.get(columnName);
+                const columnType = info ? info.type.toLowerCase() : "";
+                if (columnType === "blob" || columnType === "blob sub_type binary") {
                     if (rowValues[i] === null) {
                         tr.append(nullBlobCell());
                     } else {
