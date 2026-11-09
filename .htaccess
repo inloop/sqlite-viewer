@@ -1,0 +1,11 @@
+# Serve the SQLite WebAssembly module with the MIME type browsers expect.
+# (Harmless on servers that ignore .htaccess, e.g. nginx and GitHub Pages.)
+AddType application/wasm .wasm
+
+# Cross-origin isolation (COOP/COEP) enables the OPFS-backed database, which
+# lets edits persist across reloads (it needs SharedArrayBuffer). Without it
+# the viewer still works, just in-memory. Needs mod_headers, so guard it.
+<IfModule mod_headers.c>
+    Header set Cross-Origin-Opener-Policy "same-origin"
+    Header set Cross-Origin-Embedder-Policy "require-corp"
+</IfModule>

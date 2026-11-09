@@ -1,0 +1,33 @@
+name: Release
+
+# Builds a ready-to-serve static-site zip and publishes it as a GitHub Release
+# when a version tag (e.g. v1.1) is pushed.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download pinned external assets
+        run: ./scripts/fetch-assets.sh
+
+      - name: Build the release zip
+        run: ./scripts/build-release.sh "sqlite-viewer-${GITHUB_REF_NAME}.zip"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" --generate-notes || true
+          gh release upload "${GITHUB_REF_NAME}" \
+            "sqlite-viewer-${GITHUB_REF_NAME}.zip" --clobber

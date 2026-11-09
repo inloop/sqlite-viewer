@@ -1,24 +1,105 @@
-[![Android Arsenal](https://img.shields.io/badge/Android%20Arsenal-SQLite%20Viewer-brightgreen.svg?style=flat)](http://android-arsenal.com/details/1/2497)
-
 SQLite Viewer
-============
+=============
 
-*View SQLite file online. Uses [sql.js](https://github.com/sql-js/sql.js) for parsing sqlite files.*
+*View SQLite file online directly in your browser.*
 
-You can also load remote files (using JS ajax, remote server must send `Access-Control-Allow-Origin:*`):
-`http://inloop.github.io/sqlite-viewer/?url=http://example.com/data.sqlite`
+![](/img/preview.png?raw=true "Screenshot")
 
-![](/img/preview.png?raw=true "Example sqlite")
+A fully functional sqlite database is loaded into your browser, and changes do
+not affect the file you loaded it from. You can export the database after
+making changes.
 
-### License
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-    
-    http://www.apache.org/licenses/LICENSE-2.0
-    
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+When the site is served with the cross-origin isolation headers (`COOP`/`COEP`)
+- which the bundled `.htaccess` and Docker image set - changes are also stored
+in your browser and persist across reloads. Use *forget saved copies* in the
+footer to clear them. Without those headers the viewer still works, just
+in-memory.
+
+You can also load remote files (using JS ajax, remote server must send `Access-Control-Allow-Origin:*`) 
+and prefill a SQL query using hash parameters:
+
+- To load a remote SQLite file upon page load, append<br>
+  `#url=https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite` to the URL. Both absolute and relative URLs work, so do zipped files.
+- To prefill a SQL query, append<br>
+  `#sql=SELECT+*+FROM+table` to the URL.
+- To load a remote file *and* prefill a query at the same time: Append both like this:<br>
+  `#url=/sampledb.zip&sql=SELECT+*+FROM+table`
+
+Try [this live example](https://neuhaus.github.io/sqlite-viewer/#url=https%3A%2F%2Fraw.githubusercontent.com%2Flerocha%2Fchinook-database%2Fv1.4.5%2FChinookDatabase%2FDataSources%2FChinook_Sqlite.sqlite&sql=SELECT+%0A++++Album.AlbumId%2C%0A++++Album.Title+AS+AlbumTitle%2C%0A++++Track.TrackId%2C%0A++++Track.Name+AS+TrackName%0AFROM+Album%0AJOIN+Track+ON+Album.AlbumId+%3D+Track.AlbumId%0AORDER+BY+Album.AlbumId%2C+TrackId%0ALIMIT+0%2C40%3B+)!
+
+## Building from source
+
+There is no build process. Just download the third-party libraries (they are 
+not stored here) as pinned versions directly from their sources:
+
+```bash
+./scripts/fetch-assets.sh   # or: make deps
+```
+
+(You may remove them again with `make clean-deps`).
+
+Serve the directory over HTTP (the SQLite WASM backend does not work from
+a `file://` URL), for example using `python3 -m http.server`. To assemble a
+clean, ready-to-serve copy instead, run `make dist` (output in `dist/`).
+
+The Docker image and the GitHub Pages workflow
+(`.github/workflows/pages.yml`) run the download step automatically.
+
+## Docker
+
+You can run and configure the SQLite Viewer inside a lightweight production container using Docker.
+
+### 1. Build the Docker Image
+Execute the following build command in your workspace directory:
+```bash
+docker build -t sqlite-viewer -f docker/Dockerfile .
+```
+
+### 2. Auto-load a Database via Volume Mount
+To mount your local database file or ZIP archive and have the application **automatically fetch and load it** on page load:
+```bash
+docker run --rm -p 8080:80 \
+  -v "${PWD}/your-database.sqlite:/var/www/data.sqlite" \
+  sqlite-viewer
+```
+*Note: Navigate to `http://localhost:8080` in your browser. The database tables will load instantly with zero user interaction.*
+
+### 3. Configure Default SQL Query & Database URL
+You can specify a custom database URL and auto-execute a default SQL query on startup using environment variables:
+```bash
+docker run --rm -p 8080:80 \
+  -e DEFAULT_URL="https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite" \
+  -e DEFAULT_SQL="SELECT name, type FROM sqlite_master WHERE type='table' ORDER BY name;" \
+  sqlite-viewer
+```
+* **`DEFAULT_URL`**: The database at this URL/path (relative path or absolute URL) will be fetched and opened on page load. Both raw databases and `.zip` archives are supported.
+* **`DEFAULT_SQL`**: The code editor will be pre-populated and this query will execute automatically on startup.
+
+## Releases
+
+Pushing a version tag (e.g. `v1.1`) builds `sqlite-viewer-<tag>.zip` and
+attaches it to a GitHub Release. The archive contains the ready-to-serve site
+with the third-party assets included, so it can be unpacked straight into a
+directory your web server serves:
+
+```bash
+unzip sqlite-viewer-v1.1.zip -d /var/www/html/sqlite-viewer
+```
+
+Build the same archive locally with `make deps` (once) and then `make release`.
+
+## Libraries
+
+- Using the official [sqlite3-wasm](https://sqlite.org/wasm/doc/trunk/index.md) for parsing sqlite files.
+- Can handle SQLite files in ZIP files, thanks to [fflate](https://github.com/101arrowz/fflate).
+- Enjoy query editing with SQL syntax highlighting thanks to [CodeJar](https://medv.io/codejar/) and [PrismJS](https://prismjs.com/).
+- Also: [Bootstrap](https://getbootstrap.com/) 5.3.8, [Tom Select](https://tom-select.js.org/) and [FileSaver.js](https://github.com/eligrey/FileSaver.js/).
+
+## License
+
+Licensed under the Apache License, Version 2.0 — see [LICENSE.md](LICENSE.md) for details.
+
+The bundled third-party libraries keep their own licenses: Bootstrap (MIT),
+Tom Select (Apache-2.0), PrismJS (MIT), CodeJar (MIT), fflate (MIT),
+FileSaver.js (MIT) and sqlite3-wasm (SQLite is public domain; the bundled
+Emscripten glue is MIT/NCSA).

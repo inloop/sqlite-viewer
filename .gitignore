@@ -1,1 +1,25 @@
-.idea/*
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
+node_modules/
+*.map
+
+# Deployable site (make dist) and release archives (make release)
+/dist/
+/sqlite-viewer*.zip
+
+# Downloaded third-party assets (run scripts/fetch-assets.sh)
+/css/bootstrap.min.css
+/js/bootstrap.bundle.min.js
+/css/tom-select.bootstrap5.min.css
+/js/tom-select.min.js
+/js/prism.js
+/js/prism-sql.min.js
+/js/fflate.min.js
+/js/FileSaver.min.js
+/js/codejar.js
+/js/sqlite3.js
+/js/sqlite3.wasm
+/js/sqlite3-opfs-async-proxy.js

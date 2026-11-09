@@ -1,0 +1,10 @@
+# Exclude Git files
+.git
+.gitignore
+
+# Exclude sample databases
+examples
+
+# Exclude development files and documentation
+README.md
+LICENSE.md

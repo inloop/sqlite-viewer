@@ -1,31 +1,248 @@
-body {
+/* Theme colors follow <html data-bs-theme>, which the inline head script in
+   index.html sets to "light" or "dark" from prefers-color-scheme. */
+
+/* Brand blue: a touch darker and less grey than the old #1b4f8a. The header
+   and the primary button share it (with a slight gradient) in both themes. */
+:root {
+    --app-brand-1: #0e4b98;
+    --app-brand-2: #093f80;
+    --app-brand-hover-1: #1257ad;
+    --app-brand-hover-2: #0c4a94;
+    --app-brand-active-1: #083a77;
+    --app-brand-active-2: #062f60;
+    --app-brand-rgb: 11, 68, 142;
+    --bs-primary: #0b448e;
+    --bs-primary-rgb: 11, 68, 142;
+}
+
+[data-bs-theme="dark"] {
+    /* The header and button keep the same brand navy as light mode; only the
+       accent (drop-zone focus) is brighter, so it stays visible on the dark
+       page. */
+    --bs-primary: #1e6cd2;
+    --bs-primary-rgb: 30, 108, 210;
+}
+
+[data-bs-theme="light"] body {
     background: #f5f5f5;
 }
 
-.drag {
+[data-bs-theme="light"] .drag {
     background-color: lightblue;
 }
 
-#header {
-    background: #A0CFFF;
-    color: #3474A8;
+/* Navy header bar with white text; identical in both themes. */
+[data-bs-theme="light"] #header {
+    background: linear-gradient(180deg, var(--app-brand-1), var(--app-brand-2));
+    color: #fff;
+}
+
+[data-bs-theme="light"] .table-hover tbody tr:hover td,
+[data-bs-theme="light"] .table-hover tbody tr:hover th {
+    background-color: #F5F5E7;
+}
+
+/* Prism light-mode token colors */
+[data-bs-theme="light"] .token.keyword { color: #0033cc; font-weight: bold; }
+[data-bs-theme="light"] .token.string { color: #036a3e; }
+[data-bs-theme="light"] .token.number { color: #a626a4; }
+[data-bs-theme="light"] .token.punctuation { color: #383a42; }
+[data-bs-theme="light"] .token.operator { color: #0184a6; }
+[data-bs-theme="light"] .token.comment { color: #a0a1a7; }
+
+[data-bs-theme="dark"] body {
+    background: #000;
+}
+
+[data-bs-theme="dark"] .drag {
+    background-color: #1e3a5f;
+}
+
+[data-bs-theme="dark"] #header {
+    background: linear-gradient(180deg, var(--app-brand-1), var(--app-brand-2));
+    color: #fff;
+}
+
+/* Primary button: same brand as the header. Bootstrap bakes a literal #0d6efd
+   into .btn-primary, so override its variables; the gradient has to be
+   re-supplied on hover/active or background-color alone would be hidden. */
+.btn-primary {
+    --bs-btn-bg: var(--app-brand-2);
+    --bs-btn-border-color: var(--app-brand-2);
+    --bs-btn-hover-bg: var(--app-brand-hover-2);
+    --bs-btn-hover-border-color: var(--app-brand-hover-2);
+    --bs-btn-active-bg: var(--app-brand-active-2);
+    --bs-btn-active-border-color: var(--app-brand-active-2);
+    --bs-btn-disabled-bg: var(--app-brand-2);
+    --bs-btn-disabled-border-color: var(--app-brand-2);
+    --bs-btn-focus-shadow-rgb: var(--app-brand-rgb);
+    background-image: linear-gradient(180deg, var(--app-brand-1), var(--app-brand-2));
+}
+
+.btn-primary:hover {
+    background-image: linear-gradient(180deg, var(--app-brand-hover-1), var(--app-brand-hover-2));
+}
+
+.btn-primary:active,
+.btn-primary.active {
+    background-image: linear-gradient(180deg, var(--app-brand-active-1), var(--app-brand-active-2));
+}
+
+/* A button the same colour as the dark header is only ~1.2:1 against the page,
+   so keep a lighter border on it for a visible edge. */
+[data-bs-theme="dark"] .btn-primary {
+    --bs-btn-border-color: #3f82c9;
+    --bs-btn-hover-border-color: #4a8fd6;
+    --bs-btn-active-border-color: #3577bf;
+    --bs-btn-disabled-border-color: #3f82c9;
+    --bs-btn-focus-shadow-rgb: 110, 168, 254;
+}
+
+[data-bs-theme="dark"] .table-hover tbody tr:hover td,
+[data-bs-theme="dark"] .table-hover tbody tr:hover th {
+    background-color: #2c2c1e;
+}
+
+/* Prism dark-mode token colors */
+[data-bs-theme="dark"] .token.keyword { color: #c5a3ff !important; font-weight: bold; }
+[data-bs-theme="dark"] .token.string { color: #a8df8e !important; }
+[data-bs-theme="dark"] .token.number { color: #7ec8e3 !important; }
+[data-bs-theme="dark"] .token.punctuation { color: #ccc; }
+[data-bs-theme="dark"] .token.operator { color: #ff7b72; }
+[data-bs-theme="dark"] .token.comment { color: #8b949e; }
+
+/* Leave .ts-control transparent (Tom Select forces it so) and let the
+   wrapper's themed background show; making it opaque here hid the .form-select
+   caret that Bootstrap draws on the wrapper behind it. */
+[data-bs-theme="dark"] .ts-wrapper.form-select .ts-control {
+    border-color: #495057 !important;
+    color: #fff !important;
+}
+
+[data-bs-theme="dark"] .ts-dropdown,
+[data-bs-theme="dark"] .ts-dropdown.form-select {
+    background-color: #212529 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .ts-dropdown .active {
+    background-color: var(--app-brand-1) !important;
+    color: #fff !important;
+}
+
+/* Tom Select uses --bs-tertiary-bg (#f8f9fa) here, which barely differs from
+   the white dropdown; use a slightly darker grey so the hovered row shows. */
+[data-bs-theme="light"] .ts-dropdown .active {
+    background-color: #dee2e6;
+}
+
+/* The "(3 rows, view)" part of a table label: dim it relative to whatever
+   colour the row is (dark on the light highlight, white on the dark navy one)
+   instead of a fixed grey that vanishes on the highlighted row. */
+.table-label-meta {
+    opacity: 0.7;
+}
+
+[data-bs-theme="dark"] .ts-control > input {
+    color: #fff !important;
+}
+
+/* Focus rings: Bootstrap's #86b7fe border + 25% blue shadow is too dim on the
+   dark page, and our control border override would otherwise swallow the
+   select's focus border, so make the ring brighter here. */
+[data-bs-theme="dark"] .form-control:focus,
+[data-bs-theme="dark"] .form-select:focus {
+    border-color: #6ea8fe;
+    box-shadow: 0 0 0 0.25rem rgba(110, 168, 254, 0.45);
+}
+
+[data-bs-theme="dark"] .ts-wrapper.form-select.focus .ts-control {
+    border-color: #6ea8fe !important;
+    box-shadow: 0 0 0 0.25rem rgba(110, 168, 254, 0.45);
+}
+
+[data-bs-theme="dark"] #dropzone:focus-within {
+    outline-color: #6ea8fe;
+}
+
+/* Bootstrap's default link blue is only ~4.1:1 on the light background. */
+[data-bs-theme="light"] {
+    --bs-link-color-rgb: 10, 88, 202;
+    --bs-link-hover-color-rgb: 8, 66, 152;
+}
+
+[data-bs-theme="light"] #footer {
+    color: #495057;
+}
+
+[data-bs-theme="dark"] #footer {
+    color: #adb5bd;
+}
+
+/* btn-outline-secondary's #6c757d text is ~4.3:1 on both backgrounds. */
+[data-bs-theme="light"] .btn-outline-secondary {
+    --bs-btn-color: #495057;
+    --bs-btn-border-color: #6c757d;
+}
+
+[data-bs-theme="dark"] .btn-outline-secondary {
+    --bs-btn-color: #adb5bd;
+    --bs-btn-border-color: #6c757d;
+}
+
+/* Header links/icons inherit the header text color; without this the resizer
+   anchor takes Bootstrap's default link color instead. */
+#header a {
+    color: inherit;
+}
+
+/* The file input is visually hidden inside the dropzone; show focus on the box. */
+#dropzone:focus-within {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
 }
 
 #dropzone {
     height: 450px;
     cursor: pointer;
+    transition: height 0.5s ease;
+    /* A .row's negative gutters would make this wider than the output box;
+       drop them and use the same 0.75rem inset so the drop area and the
+       editor/table line up. */
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
 }
 
 #output-box {
     display: none;
-}
-
-.ace_hidden-cursors {
     opacity: 0;
+    transition: opacity 0.5s ease;
 }
 
-.table-hover tbody tr:hover td, .table-hover tbody tr:hover th {
-    background-color: #F5F5E7;
+/* Export button shares the width of the Execute/History column below it. */
+#output-box #dropdownMenu1,
+#output-box #sql-run,
+#output-box #sql-history-btn {
+    width: 6.5rem;
+}
+
+
+/* Pull the footer closer to the table while the pager is visible.
+   !important is needed to beat the Bootstrap my-1 utility on #footer. */
+#footer.with-pager {
+    margin-top: -0.75rem !important;
+}
+
+#sql-editor {
+    height: 120px;
+    font-family: var(--bs-font-monospace), monospace;
+    font-size: 16px;
+    overflow-y: auto;
+    /* .form-control-lg would give this 0.5rem; use the same radius as the
+       drop zone and the buttons (--bs-border-radius) instead. */
+    border-radius: var(--bs-border-radius);
 }
 
 #data {
@@ -41,4 +258,42 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Query History Sidebar Custom Styling */
+.query-card {
+    border-radius: 6px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.query-card:hover {
+    transform: translateY(-1px);
+}
+
+.query-card pre {
+    max-height: 90px;
+    font-family: var(--bs-font-monospace), monospace;
+    font-size: 13px;
+    border-radius: 4px;
+    border: 1px solid var(--bs-border-color);
+    background-color: var(--bs-tertiary-bg) !important;
+    color: var(--bs-body-color) !important;
+    cursor: pointer;
+    transition: filter 0.15s ease, background-color 0.15s ease;
+}
+
+.query-card pre:hover {
+    filter: brightness(0.95);
+    background-color: var(--bs-secondary-bg) !important;
+}
+
+/* Make sure dark mode handles brightness correctly */
+[data-bs-theme="dark"] .query-card pre:hover {
+    filter: brightness(1.15);
+}
+
+/* The Export menu and the floating pager are slightly see-through (20%). */
+.dropdown-menu,
+.pager-box {
+    background-color: rgba(var(--bs-body-bg-rgb), 0.8);
 }

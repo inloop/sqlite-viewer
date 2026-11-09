@@ -8,39 +8,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SQLite Viewer</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
-    <link href="css/select2.min.css" rel="stylesheet">
-    <link href="css/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+    <link href="css/tom-select.bootstrap5.min.css" rel="stylesheet">
     <link href="css/main.css" rel="stylesheet">
-    <link rel="image_src" href="img/icon.png" />
+
     <link rel="icon" type="image/png" href="img/icon.png"/>
-    <meta property="og:url" content="https://inloop.github.io/sqlite-viewer/">
+    <meta property="og:url" content="https://neuhaus.github.io/sqlite-viewer/">
     <meta property="og:type" content="website">
     <meta property="og:title" content="SQLite Viewer">
     <meta property="og:description" content="sqlite file viewer">
-    <meta property="og:image" content="https://inloop.github.io/sqlite-viewer/img/icon.png">
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-N22SYDVQHZ"></script>
+    <meta property="og:image" content="https://neuhaus.github.io/sqlite-viewer/img/icon.png">
     <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-N22SYDVQHZ');
+        // Follow the OS color scheme. Bootstrap's dark mode keys off the
+        // data-bs-theme attribute, so resolve it before the first paint.
+        (function () {
+            const media = window.matchMedia("(prefers-color-scheme: dark)");
+            function applyTheme() {
+                document.documentElement.setAttribute("data-bs-theme", media.matches ? "dark" : "light");
+            }
+            media.addEventListener("change", applyTheme);
+            applyTheme();
+        })();
     </script>
 </head>
 <body>
 
-<img src="img/icon.png" style="display: none;"/>
-
-<div id="main-container" class="container shadow bg-white">
+<main id="main-container" class="container shadow">
     <header id="header" class="row align-items-center p-4">
         <img src="img/logo.svg" width="54" height="54" class="col-auto p-0" alt="Database logo"/>
 
         <div class="col">
-            <h4 class="mb-0">SQLite Viewer</h4>
+            <h1 class="h4 mb-0">SQLite Viewer</h1>
             <p class="mb-0">view sqlite file online</p>
         </div>
 
-        <a href="#" id="resizer" aria-label="Expand/Collapse" class="col-auto text-decoration-none" style="color: #3474A8">
+        <a href="#" id="resizer" aria-label="Expand/Collapse" class="col-auto text-decoration-none">
             <svg id="resizer-expand" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-arrows-angle-expand" viewBox="0 0 16 16">
                 <path fill-rule="evenodd" d="M5.828 10.172a.5.5 0 0 0-.707 0l-4.096 4.096V11.5a.5.5 0 0 0-1 0v3.975a.5.5 0 0 0 .5.5H4.5a.5.5 0 0 0 0-1H1.732l4.096-4.096a.5.5 0 0 0 0-.707m4.344-4.344a.5.5 0 0 0 .707 0l4.096-4.096V4.5a.5.5 0 1 0 1 0V.525a.5.5 0 0 0-.5-.5H11.5a.5.5 0 0 0 0 1h2.768l-4.096 4.096a.5.5 0 0 0 0 .707"/>
             </svg>
@@ -51,19 +52,20 @@
     </header>
 
     <div id="compat-error" class="alert alert-danger row rounded-0 d-none" role="alert">
-        Sorry but your browser does not support some of new HTML5 features! Try using latest version of Google Chrome or Firefox.
+        Sorry, this application requires a browser that supports  WebAssembly, Web Workers, and the File API.
     </div>
 
-    <div class="row text-center p-3 align-items-stretch" id="dropzone" onclick="dropzoneClick(this)">
-        <div class="d-flex border border-info-subtle rounded-1 align-items-center justify-content-center">
+    <div class="row text-center py-3 align-items-stretch" id="dropzone">
+        <input type="file" id="dropzone-dialog" class="visually-hidden" aria-label="Load a SQLite database file">
+        <div class="d-flex border border-secondary rounded-2 align-items-center justify-content-center">
             <div id="drop-text">
                 <b>Drop file here</b> to load content or click on this box to open file dialog.<br/>
 
-                <div class="nouploadinfo small mb-3">No file will be uploaded - uses only JavaScript HTML5 FileReader.
+                <div class="nouploadinfo small mb-3">No file will be uploaded, all remains locally in your browser.
                 </div>
 
                 <a id="sample-db-link" class="no-propagate small text-decoration-none"
-                   href="examples/Chinook_Sqlite.sqlite">&hellip; or download &amp; try this sample file</a>
+                   href="https://raw.githubusercontent.com/lerocha/chinook-database/v1.4.5/ChinookDatabase/DataSources/Chinook_Sqlite.sqlite">&hellip; or download &amp; try this sample file</a>
             </div>
             <div id="drop-loading" class="d-flex align-items-center d-none">
                 <div class="spinner-border me-2" role="status">
@@ -76,7 +78,7 @@
 
     <div id="output-box" class="container-fluid">
         <div class="input-group">
-            <select id="tables" class="form-select" title="Table"></select>
+            <select id="tables" class="form-select" aria-label="Table"></select>
 
             <div class="dropdown ms-2">
                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenu1"
@@ -84,20 +86,31 @@
                     Export
                 </button>
                 <ul class="dropdown-menu" aria-labelledby="dropdownMenu1">
-                    <li><a class="dropdown-item" href="#" onclick="exportAllToCsv()">All tables to CSV</a></li>
-                    <li><a class="dropdown-item" href="#" onclick="exportSelectedTableToCsv()">Selected table to CSV</a></li>
-                    <li><a class="dropdown-item" href="#" onclick="exportQueryTableToCsv()">Query table to CSV</a></li>
+                    <li><a class="dropdown-item" href="#" data-action="export-all">All tables to CSV</a></li>
+                    <li><a class="dropdown-item" href="#" data-action="export-selected">Selected table to CSV</a></li>
+                    <li><a class="dropdown-item" href="#" data-action="export-query">Query table to CSV</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" data-action="export-db">Database (.sqlite)</a></li>
+                    <li><a class="dropdown-item" href="#" data-action="export-db-zip">Database (.zip)</a></li>
                 </ul>
             </div>
         </div>
 
         <div class="d-flex mt-3 mb-3">
-            <div id="sql-editor" class="form-control form-control-lg col me-2"></div>
-            <button class="btn btn-primary col-auto" id="sql-run" type="submit" onclick="executeSql(this)">Execute</button>
+            <div id="sql-editor" class="form-control form-control-lg col me-2" role="textbox" aria-multiline="true" aria-label="SQL query"></div>
+            <div class="d-flex flex-column gap-1 col-auto">
+                <button class="btn btn-primary flex-fill" id="sql-run" type="submit">Execute</button>
+                <button class="btn btn-outline-secondary flex-fill d-flex align-items-center justify-content-center" id="sql-history-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#history-sidebar" aria-controls="history-sidebar">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-clock-history me-1" viewBox="0 0 16 16">
+                        <path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022zm2.004.45a7 7 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342zm1.37.71a7 7 0 0 0-.439-.27l.493-.87a8 8 0 0 1 .979.654l-.615.789a7 7 0 0 0-.418-.302zm1.834 1.39a7 7 0 0 0-.653-.796l.724-.69c.27.285.52.59.747.91l-.818.576zm.744 1.352a7 7 0 0 0-.214-.382l.893-.45a8 8 0 0 1 .45.824l-.893.382zm.09 2.007a7 7 0 0 0-.022-.589h.997c.012.302.012.605 0 .907h-.997zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"/>
+                    </svg>
+                    History
+                </button>
+            </div>
         </div>
 
-        <div class="alert alert-danger" id="error" style="display: none"></div>
-        <div class="alert alert-info" id="info" style="display: none"></div>
+        <div class="alert alert-danger" id="error" role="alert" style="display: none"></div>
+        <div class="alert alert-info" id="info" role="status" style="display: none"></div>
 
         <div class="row pb-4">
             <div class="overflow-x-auto">
@@ -111,41 +124,99 @@
 
         </div>
     </div>
-</div>
+</main>
 
-<div id="bottom-bar" class="d-flex position-sticky justify-content-center bottom-0 pb-4 d-none pe-none">
-    <div class="row bg-white border border-dark shadow p-3 rounded-2 pe-auto">
-        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-prev" type="submit" onclick="setPage(this, false)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
+<div id="bottom-bar" role="navigation" aria-label="Table pagination" class="d-flex position-sticky justify-content-center bottom-0 pb-4 d-none pe-none">
+    <div class="row pager-box border border-dark shadow p-3 rounded-2 pe-auto">
+        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-prev" type="button" aria-label="Previous page">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16" aria-hidden="true">
                 <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
             </svg>
         </button>
-        <a href="javascript:void(0)" data-bs-toggle="tooltip" class="text-decoration-none col-auto" onclick="setPage(this)" id="pager"></a>
-        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-next" type="submit" onclick="setPage(this, true)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-right-fill" viewBox="0 0 16 16">
+        <a href="#" data-bs-toggle="tooltip" class="text-decoration-none col-auto" id="pager"></a>
+        <button class="btn btn-outline-secondary btn-sm lh-1 col-auto" id="page-next" type="button" aria-label="Next page">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-right-fill" viewBox="0 0 16 16" aria-hidden="true">
                 <path d="m12.14 8.753-5.482 4.796c-.646.566-1.658.106-1.658-.753V3.204a1 1 0 0 1 1.659-.753l5.48 4.796a1 1 0 0 1 0 1.506z"/>
             </svg>
         </button>
     </div>
 </div>
 
-<footer class="col text-center text-secondary py-2 my-1 small" id="footer">
+<footer class="col text-center py-2 my-1 small" id="footer">
     <a href="https://yuraj11.github.io" class="text-decoration-none">&copy; 2024 Juraj Novák</a><br>
-    <small>| <a href="https://github.com/inloop/sqlite-viewer" class="text-decoration-none link-opacity-75">Fork me on GitHub</a> |</small>
+    <!-- Points at this fork until the changes are merged upstream. -->
+    <small>| <a href="https://github.com/neuhaus/sqlite-viewer" class="text-decoration-none">Fork me on GitHub</a> |</small>
+    <small id="storage-note" class="d-none"><br>| edits are saved in this browser · <a href="#" class="text-decoration-none" data-action="forget-storage">forget saved copies</a> |</small>
 </footer>
 
-<input type="file" id="dropzone-dialog" style="opacity: 0;display:none">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="history-sidebar" role="dialog" aria-labelledby="history-sidebar-label">
+    <div class="offcanvas-header border-bottom">
+        <h2 class="offcanvas-title h5" id="history-sidebar-label">Query History</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column h-100">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <small class="text-secondary" id="history-count">0 queries saved</small>
+            <button class="btn btn-sm btn-outline-danger" id="clear-active-history">Clear Active</button>
+        </div>
+        <div id="history-list" class="d-flex flex-column gap-2 overflow-y-auto flex-grow-1 mb-3">
+            <!-- Cards populated dynamically via JS -->
+        </div>
+        <div class="border-top pt-3 text-center mt-auto">
+            <button class="btn btn-sm btn-link text-danger text-decoration-none" id="clear-all-history">Clear all databases history</button>
+        </div>
+    </div>
+</div>
 
-<script src="js/jquery-3.7.1.min.js"></script>
-<script src="js/filereader.js"></script>
-<script src="js/sql-wasm.js?v=1100"></script>
-<script src="js/select2.min.js?v=4013"></script>
-<script src="js/ace/ace.js?v=1323"></script>
-<script src="js/bootstrap.bundle.min.js?v=532"></script>
-<script src="js/mindmup-editabletable.js"></script>
-<script src="js/jszip.min.js"></script>
+<div class="modal fade" id="app-dialog" tabindex="-1" role="dialog" aria-labelledby="app-dialog-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="app-dialog-title">SQLite Viewer</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0" id="app-dialog-message"></p>
+                <input type="text" class="form-control mt-3 d-none" id="app-dialog-input" aria-labelledby="app-dialog-message">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="app-dialog-ok">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<template id="tmpl-history-card">
+    <div class="card shadow-sm border-0 border-start border-3 border-primary query-card">
+        <div class="card-body p-2 d-flex flex-column gap-1">
+            <div class="d-flex justify-content-between align-items-center">
+                <small class="text-secondary font-monospace" style="font-size: 0.75rem"></small>
+                <button class="btn btn-link p-0 text-danger text-decoration-none" style="font-size: 0.85rem" data-action="delete">Delete</button>
+            </div>
+            <pre class="p-2 mb-1 overflow-x-auto" data-action="load"></pre>
+            <div class="d-flex gap-2 mt-1">
+                <button class="btn btn-sm btn-light py-0 px-2" data-action="run">Run</button>
+                <button class="btn btn-sm btn-light py-0 px-2" data-action="copy">Copy</button>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="tmpl-history-empty">
+    <div class="text-center text-secondary py-5">No queries in history yet.</div>
+</template>
+
+<script src="js/dom.js"></script>
+<script src="js/tom-select.min.js"></script>
+<script src="js/prism.js"></script>
+<script src="js/prism-sql.min.js"></script>
+<script src="js/codejar.js"></script>
+<script src="js/bootstrap.bundle.min.js"></script>
+<script src="js/fflate.min.js"></script>
 <script src="js/FileSaver.min.js"></script>
-<script src="js/main.js?v=18"></script>
+<script src="js/config.js"></script>
+<script src="js/main.js"></script>
 
 </body>
 </html>

@@ -1,226 +1,376 @@
 "use strict";
 
-const SQL_WASM_PATH = "https://inloop.github.io/sqlite-viewer/js/sql-wasm.wasm";
+// Rows fetched and rendered per page. The query's SQL is never rewritten to
+// paginate; the worker steps a prepared statement and skips rows instead.
+const PAGE_SIZE = 50;
 
-const SQL_FROM_REGEX = /FROM\s+((?=['"])((["'])(?<g1>[^'"]+))|(?<g2>\w+))/mi;
-const SQL_LIMIT_REGEX = /LIMIT\s+(\d+)(?:\s*,\s*(\d+))?/mi;
-const SQL_SELECT_REGEX = /SELECT\s+[^;]+\s+FROM\s+/mi;
+function quoteIdentifier(name) {
+    return '"' + name.replace(/"/g, '""') + '"';
+}
 
-let db = null;
-let lastCachedQueryCount = { select: "", count: 0 };
+let worker = null;
+let nextMessageId = 0;
+const pendingMessages = new Map();
+
+function initWorker() {
+    worker = new Worker("js/worker.sql-wasm.js");
+    worker.onmessage = function (event) {
+        const data = event.data;
+        const id = data.id;
+
+        if (pendingMessages.has(id)) {
+            const { resolve, reject } = pendingMessages.get(id);
+            pendingMessages.delete(id);
+
+            if (data.error) {
+                reject(new Error(data.error));
+            } else {
+                resolve(data);
+            }
+        }
+    };
+    worker.onerror = function (err) {
+        console.error("Worker error:", err);
+        for (const { reject } of pendingMessages.values()) {
+            reject(new Error("Worker error: " + (err.message || "unknown error")));
+        }
+        pendingMessages.clear();
+    };
+}
+
+function sendWorkerMessage(action, payload = {}, transferables = []) {
+    return new Promise((resolve, reject) => {
+        const id = nextMessageId++;
+        pendingMessages.set(id, { resolve, reject });
+        worker.postMessage({ id, action, ...payload }, transferables);
+    });
+}
+
+// Run a query and return its first result set ({columns, values}), or null.
+async function execSql(sql) {
+    const { results } = await sendWorkerMessage("exec", { sql });
+    return results && results.length ? results[0] : null;
+}
+
 let loadedTableNames = [];
-const editor = ace.edit("sql-editor");
+// Which query/page the pager is currently showing, so Next/Prev can step it.
+let viewState = { query: "", page: 1 };
+let currentDbKey = "default";
+let currentDbName = "Default";
+let databaseAltered = false;
+let editor = null;
+let tableSelect = null;
 const errorBox = $("#error");
 const infoBox = $("#info");
+let hashParams = new URLSearchParams(window.location.hash.substring(1));
+const appConfig = window.APP_CONFIG || {};
 
-const selectFormatter = function (item) {
-    const index = item.text.indexOf("(");
-    if (index > -1) {
-        const name = item.text.substring(0, index);
-        const tableName = item.text.substring(index - 1);
-        return $(`<span>${name}<span style="color:#ccc">${tableName}</span></span>`);
+// minimize encoding for nicer URLs
+function encodeHashComponent(text) {
+    return encodeURIComponent(text)
+        .replace(/%20/g, "+")
+        .replace(/%(2F|3A|2C|3B|40|24|3F|3D|23)/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+// Set (or, with a null value, remove) a hash parameter and sync the URL.
+// replaceState (rather than assigning location.hash) keeps this from firing a
+// hashchange we would otherwise have to ignore.
+function setHashParam(key, value) {
+    if (value == null) {
+        if (!hashParams.has(key)) return;
+        hashParams.delete(key);
     } else {
-        return item.text;
+        hashParams.set(key, value);
     }
-};
+    const hash = Array.from(hashParams)
+        .map(([name, val]) => `${encodeHashComponent(name)}=${encodeHashComponent(val)}`)
+        .join("&");
+    history.replaceState(null, null, `#${hash}`);
+}
+
+// Resolve a #url value to an absolute URL and its database/history key.
+function resolveDbUrl(urlStr) {
+    const resolvedUrl = new URL(decodeURIComponent(urlStr), window.location.href);
+    return { resolvedUrl, key: "url:" + encodeURIComponent(resolvedUrl.href) };
+}
+
+// React to the user editing the hash or using back/forward: load a newly
+// referenced database, otherwise render a newly referenced query.
+function onHashChange() {
+    hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+    const url = hashParams.get("url");
+    if (url != null) {
+        let isCurrent = false;
+        try {
+            isCurrent = resolveDbUrl(url).key === currentDbKey;
+        } catch (_) {
+            // Malformed URL: let loadRemoteDB report it.
+        }
+        if (!isCurrent) {
+            loadRemoteDB(url);
+            return;
+        }
+    }
+
+    if (!editor) return;
+    const sql = hashParams.get("sql");
+    if (sql != null && sql !== editor.toString()) {
+        editor.updateCode(sql);
+        renderQuery(sql);
+    }
+}
 
 initialize();
 
 function initialize() {
-    let fileReaderOpts = {
-        readAsDefault: "ArrayBuffer", on: {
-            load: function (e) {
-                loadDB(e.target.result);
-            }
+    bindUiEvents();
+    initTableSelect();
+    initEditor();
+    initDatabase();
+}
+
+function bindUiEvents() {
+    $("#resizer").on("click", () => {
+        $("#main-container").toggleClass("container container-fluid");
+        $("#resizer-expand").toggle();
+        $("#resizer-collapse").toggle();
+    });
+    $("#sql-editor").on("keydown", onKeyDown);
+
+    $("#dropzone").on("click", dropzoneClick);
+    $("#sql-run").on("click", executeSql);
+
+    // The export links are <a href="#">; stop the default jump so it can't
+    // clear the #url / #sql hash parameters.
+    $('[data-action="export-all"]').on("click", (event) => {
+        event.preventDefault();
+        exportAllToCsv();
+    });
+    $('[data-action="export-selected"]').on("click", (event) => {
+        event.preventDefault();
+        exportSelectedTableToCsv();
+    });
+    $('[data-action="export-query"]').on("click", (event) => {
+        event.preventDefault();
+        exportQueryTableToCsv();
+    });
+    $('[data-action="export-db"]').on("click", (event) => {
+        event.preventDefault();
+        if (databaseAltered) exportDatabase(false);
+    });
+    $('[data-action="export-db-zip"]').on("click", (event) => {
+        event.preventDefault();
+        if (databaseAltered) exportDatabase(true);
+    });
+    updateDatabaseExportItems();
+
+    $('[data-action="forget-storage"]').on("click", async (event) => {
+        event.preventDefault();
+        const ok = await showDialog(
+            "Delete all databases saved in this browser? The files you loaded are not affected.");
+        if (!ok) return;
+        await sendWorkerMessage("forget");
+        location.reload();
+    });
+
+    $("#page-prev").on("click", (event) => setPage(event.currentTarget, false));
+    $("#page-next").on("click", (event) => setPage(event.currentTarget, true));
+    $("#pager").on("click", (event) => {
+        event.preventDefault();
+        setPage(event.currentTarget);
+    });
+
+    $("#clear-active-history").on("click", clearQueryHistory);
+    $("#clear-all-history").on("click", clearAllDatabasesHistory);
+
+    // Links inside the dropzone must not trigger its click handler.
+    $(".no-propagate").on("click", (event) => event.stopPropagation());
+
+    window.addEventListener("hashchange", onHashChange);
+}
+
+function initTableSelect() {
+    tableSelect = new TomSelect("#tables", {
+        placeholder: "Select a table",
+        maxItems: 1,
+        render: { option: renderTableLabel, item: renderTableLabel },
+        onChange: (value) => {
+            if (value) doDefaultSelect(value);
         }
-    };
+    });
+}
 
-    let toggleFullScreen = function () {
-        const container = $("#main-container");
-        const resizerExpandIcon = $("#resizer-expand");
-        const resizerCollapseIcon = $("#resizer-collapse");
+function initEditor() {
+    const editorElement = document.getElementById("sql-editor");
+    editorElement.classList.add("language-sql");
+    editor = CodeJar(editorElement, (el) => Prism.highlightElement(el));
+}
 
-        container.toggleClass("container container-fluid");
-        resizerExpandIcon.toggle();
-        resizerCollapseIcon.toggle();
-    };
-    $("#resizer").click(toggleFullScreen);
-    $("#sql-editor").keydown(onKeyDown);
-
+function initDatabase() {
     if (typeof FileReader === "undefined" || typeof WebAssembly === "undefined") {
         $("#dropzone, #dropzone-dialog").hide();
         $("#compat-error").toggleClass("d-none", false);
-    } else {
-        $("#dropzone, #dropzone-dialog").fileReaderJS(fileReaderOpts);
+        return;
     }
 
-    //Initialize editor
-    editor.setTheme("ace/theme/chrome");
-    editor.renderer.setShowGutter(false);
-    editor.renderer.setShowPrintMargin(false);
-    editor.renderer.setPadding(20);
-    editor.renderer.setScrollMargin(8, 8, 0, 0);
-    editor.setHighlightActiveLine(false);
-    editor.getSession().setUseWrapMode(true);
-    editor.getSession().setMode("ace/mode/sql");
-    editor.setOptions({maxLines: 5});
-    editor.setFontSize(16);
+    initWorker();
+    setupDragAndDrop();
 
-    $(".no-propagate").on("click", function (el) {
-        el.stopPropagation();
-    });
-
-    //Check url to load remote DB
-    $.urlParam = function (name) {
-        let results = new RegExp( `[\?&]${name}=([^&#]*)`).exec(window.location.href);
-        if (results == null) {
-            return null;
-        } else {
-            return results[1] || 0;
-        }
-    };
-    const loadUrlDB = $.urlParam("url");
+    const loadUrlDB = hashParams.get("url");
     if (loadUrlDB != null) {
-        setIsLoading(true);
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", decodeURIComponent(loadUrlDB), true);
-        xhr.responseType = "arraybuffer";
-        xhr.onload = function (e) {
-            loadDB(this.response);
-        };
-        xhr.onerror = function (e) {
-            setIsLoading(false);
-        };
-        xhr.send();
+        loadRemoteDB(loadUrlDB);
+    } else if (appConfig.defaultUrl) {
+        loadRemoteDB(appConfig.defaultUrl);
     }
 }
 
-function loadDB(arrayBuffer) {
+async function loadRemoteDB(urlStr) {
+    try {
+        const { resolvedUrl, key } = resolveDbUrl(urlStr);
+        currentDbKey = key;
+        currentDbName = decodeURIComponent(resolvedUrl.pathname.split("/").pop()) || resolvedUrl.hostname;
+        setIsLoading(true);
+        const response = await fetch(resolvedUrl.href);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const buffer = await response.arrayBuffer();
+        const pathname = resolvedUrl.pathname.toLowerCase();
+        if (pathname.endsWith(".zip")) {
+            await handleZipFile(buffer);
+        } else {
+            await loadDB(buffer);
+        }
+        setHashParam("url", urlStr);
+    } catch (err) {
+        setIsLoading(false);
+        showErrorMessage("Error loading remote database: " + err.message);
+    }
+}
+
+async function loadDB(arrayBuffer) {
     setIsLoading(true);
 
     resetTableList();
+    resetDatabaseAltered();
 
-    initSqlJs({locateFile: file => SQL_WASM_PATH}).then(function (SQL) {
-        let tables = null;
-        try {
-            db = new SQL.Database(new Uint8Array(arrayBuffer));
+    try {
+        // Send ArrayBuffer to Worker using transferable array for 0-copy transfer
+        const { persisted } = await sendWorkerMessage(
+            "open", { buffer: arrayBuffer, key: currentDbKey }, [arrayBuffer]);
+        setStoragePersisted(persisted);
+        renderQueryHistory();
 
-            //Get all table names from master table
-            tables = db.prepare("SELECT * FROM sqlite_master WHERE type='table' OR type='view' ORDER BY name");
-        } catch (ex) {
-            if (tables !== null) {
-                tables.free();
-            }
-            setIsLoading(false);
-            window.alert(ex);
-            return;
+        const firstTableName = await populateTableList(true);
+        const sqlParam = hashParams.get("sql");
+        const defaultSql = appConfig.defaultSql || null;
+
+        if (sqlParam != null) {
+            editor.updateCode(sqlParam);
+            await renderQuery(sqlParam);
+        } else if (defaultSql != null) {
+            editor.updateCode(defaultSql);
+            await renderQuery(defaultSql);
+        } else if (firstTableName !== null) {
+            await doDefaultSelect(firstTableName);
         }
 
-        let firstTableName = null;
-        const tableList = $("#tables");
-
-        while (tables.step()) {
-            const rowObj = tables.getAsObject();
-            const name = rowObj["name"];
-            const type = rowObj["type"];
-
-            if (firstTableName === null) {
-                firstTableName = name;
-            }
-            const rowCount = getTableRowsCount(name);
-            loadedTableNames.push(name);
-            const tableType = type !== "table" ? `, ${type}` : "";
-            tableList.append(`<option value="${name}">${name} (${rowCount} rows${tableType})</option>`);
-        }
-        tables.free();
-
-        //Select first table and show It
-        tableList.val(firstTableName);
-        doDefaultSelect(firstTableName);
-
-        $("#output-box").fadeIn();
+        $("#output-box").show();
+        setTimeout(() => {
+            $("#output-box").css("opacity", 1);
+        }, 50);
         $(".nouploadinfo").hide();
         $("#sample-db-link").hide();
-        $("#dropzone").delay(50).animate({height: 75}, 500);
-        $("#success-box").show();
+        $("#dropzone").css("height", "75px");
 
+    } catch (ex) {
+        showErrorMessage(ex.message || ex);
+    } finally {
         setIsLoading(false);
-    });
-}
-
-function getTableRowsCount(name) {
-    const sel = db.prepare(`SELECT COUNT(*) AS count FROM '${name}'`);
-    if (sel.step()) {
-        const count = sel.getAsObject()["count"];
-        sel.free();
-        return count;
-    } else {
-        sel.free();
-        return -1;
     }
 }
 
-function getQueryRowCount(query) {
-    if (query === lastCachedQueryCount.select) {
-        return lastCachedQueryCount.count;
-    }
+async function populateTableList(selectFirst = false) {
+    const currentSelected = tableSelect.getValue();
 
-    let queryReplaced = query.replace(SQL_SELECT_REGEX, "SELECT COUNT(*) AS count FROM ");
+    // Reset table name cache
+    loadedTableNames = [];
+    tableSelect.clear(true);
+    tableSelect.clearOptions(() => false);
 
-    if (queryReplaced !== query) {
-        queryReplaced = queryReplaced.replace(SQL_LIMIT_REGEX, "");
-        const sel = db.prepare(queryReplaced);
-        if (sel.step()) {
-            const count = sel.getAsObject()["count"];
-            sel.free();
+    try {
+        const res = await execSql("SELECT name, type FROM sqlite_master WHERE type='table' OR type='view' ORDER BY name");
 
-            lastCachedQueryCount.select = query;
-            lastCachedQueryCount.count = count;
+        let firstTableName = null;
 
-            return count;
+        if (res) {
+            const tables = res.values;
+            if (tables.length > 0) {
+                firstTableName = tables[0][0];
+            }
+
+            // Row counts are independent; fetch them concurrently.
+            const rowCounts = await Promise.all(tables.map(([name]) => getTableRowsCount(name)));
+            tables.forEach(([name, type], i) => {
+                loadedTableNames.push(name);
+                tableSelect.addOption({ value: name, text: tableLabel(name, rowCounts[i], type) });
+            });
+        }
+
+        if (selectFirst && firstTableName !== null) {
+            tableSelect.setValue(firstTableName, true);
+            return firstTableName;
+        } else if (currentSelected && loadedTableNames.includes(currentSelected)) {
+            tableSelect.setValue(currentSelected, true);
+            return currentSelected;
         } else {
-            sel.free();
-            return -1;
+            tableSelect.clear(true);
+            return null;
         }
-    } else {
+    } catch (e) {
+        console.error("Error populating table list:", e);
+        return null;
+    }
+}
+
+async function getTableRowsCount(name) {
+    try {
+        const res = await execSql(`SELECT COUNT(*) AS count FROM ${quoteIdentifier(name)}`);
+        return res ? res.values[0][0] : -1;
+    } catch (e) {
+        console.error(e);
         return -1;
     }
 }
 
-function getTableColumnTypes(tableName) {
-    let result = new Map();
-    const sel = db.prepare(`PRAGMA table_info('${tableName}')`);
-
-    while (sel.step()) {
-        const obj = sel.getAsObject();
-        let type = obj["type"];
-        if (obj["notnull"] === 1) {
-            type += " NOT NULL";
+// Constraint text (NOT NULL / PRIMARY KEY) per column of a source table, from
+// PRAGMA table_info. The declared type comes from the statement metadata, so
+// aliases and expressions are handled consistently; this only adds constraints.
+async function getTableConstraints(tableName) {
+    const result = new Map();
+    try {
+        const res = await execSql(`PRAGMA table_info(${quoteIdentifier(tableName)})`);
+        if (res) {
+            // PRAGMA table_info returns columns: cid, name, type, notnull, dflt_value, pk
+            for (const row of res.values) {
+                const [, name, , notnull, , pk] = row;
+                const constraints = [];
+                if (notnull === 1) constraints.push("NOT NULL");
+                if (pk === 1) constraints.push("PRIMARY KEY");
+                if (constraints.length) result.set(name, constraints.join(" "));
+            }
         }
-        if (obj["pk"] === 1) {
-            type += " PRIMARY KEY";
-        }
-        result.set(obj.name, type);
+    } catch (e) {
+        console.error(e);
     }
-    sel.free();
-
     return result;
 }
 
 function resetTableList() {
-    const tables = $("#tables");
     loadedTableNames = [];
-    tables.empty();
-    tables.append("<option></option>");
-    tables.select2({
-        placeholder: "Select a table",
-        theme: "bootstrap-5",
-        templateSelection: selectFormatter,
-        templateResult: selectFormatter
-    });
-    tables.on("change", function (e) {
-        doDefaultSelect(tables.val());
-    });
+    tableSelect.clear(true);
+    tableSelect.clearOptions(() => false);
 }
 
 function setIsLoading(isLoading) {
@@ -239,110 +389,183 @@ function dropzoneClick() {
     $("#dropzone-dialog").click();
 }
 
-function doDefaultSelect(name) {
-    const defaultSelect = `SELECT * FROM '${name}' LIMIT 0,30`;
-    editor.setValue(defaultSelect, -1);
-    renderQuery(defaultSelect);
+function setupDragAndDrop() {
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("dropzone-dialog");
+
+    // Prevent default drag behaviors for window to avoid opening files dropped outside the dropzone
+    window.addEventListener("dragover", function (e) {
+        e.preventDefault();
+    }, false);
+    window.addEventListener("drop", function (e) {
+        e.preventDefault();
+    }, false);
+
+    // Drag-and-drop event handlers for the dropzone area
+    dropzone.addEventListener("dragenter", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add("drag");
+    }, false);
+
+    dropzone.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add("drag");
+    }, false);
+
+    dropzone.addEventListener("dragleave", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove("drag");
+    }, false);
+
+    dropzone.addEventListener("drop", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove("drag");
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            handleFile(files[0]);
+        }
+    }, false);
+
+    // Click file selector handling
+    fileInput.addEventListener("change", function (e) {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            handleFile(files[0]);
+        }
+    }, false);
 }
 
-function executeSql() {
-    const query = editor.getValue();
-    renderQuery(query);
-    $("#tables").val(getTableNameFromQuery(query));
-}
-
-function getTableNameFromQuery(query) {
-    const sqlRegex = SQL_FROM_REGEX.exec(query);
-    if (sqlRegex != null) {
-        return sqlRegex.groups.g1 ?? sqlRegex.groups.g2;
+function handleFile(file) {
+    setHashParam("url", null);
+    currentDbName = file.name;
+    if (file.name.endsWith(".zip")) {
+        handleZipFile(file);
     } else {
-        return null;
+        currentDbKey = `file:${file.name}-${file.size}-${file.lastModified}`;
+        setIsLoading(true);
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            loadDB(e.target.result);
+        };
+        reader.onerror = function () {
+            setIsLoading(false);
+            showErrorMessage("Error reading file.");
+        };
+        reader.readAsArrayBuffer(file);
     }
 }
 
-function parseLimitFromQuery(query) {
-    const sqlRegex = SQL_LIMIT_REGEX.exec(query);
-    if (sqlRegex != null) {
-        let result = { max: 0, offset: 0 };
+const DATABASE_EXTENSIONS = [".sqlite", ".db", ".db3", ".sqlite3"];
 
-        if (sqlRegex.length > 2 && typeof sqlRegex[2] !== "undefined") {
-            result.offset = parseInt(sqlRegex[1]);
-            result.max = parseInt(sqlRegex[2]);
+async function handleZipFile(file) {
+    setIsLoading(true);
+    try {
+        const buffer = file instanceof ArrayBuffer ? file : await file.arrayBuffer();
+        // Inflate only entries that look like a database, then take the first
+        // one so the choice is deterministic.
+        const entries = fflate.unzipSync(new Uint8Array(buffer), {
+            filter: (entry) => !entry.name.endsWith("/") &&
+                DATABASE_EXTENSIONS.some(ext => entry.name.endsWith(ext))
+        });
+
+        const dbName = Object.keys(entries)[0];
+        if (dbName === undefined) {
+            throw new Error("No SQLite database (.sqlite, .db, .db3, .sqlite3) found inside the ZIP file.");
+        }
+
+        const dbBytes = entries[dbName];
+        if (file && typeof file.name === "string") {
+            currentDbKey = `zip:${file.name}:${dbName}-${dbBytes.byteLength}`;
+            currentDbName = dbName;
+        }
+        await loadDB(dbBytes.slice().buffer);
+
+    } catch (err) {
+        setIsLoading(false);
+        showErrorMessage(err.message || err);
+    }
+}
+
+async function doDefaultSelect(name) {
+    const defaultSelect = `SELECT * FROM ${quoteIdentifier(name)}`;
+    editor.updateCode(defaultSelect);
+    await renderQuery(defaultSelect);
+}
+
+async function executeSql() {
+    const query = editor.toString();
+    saveQueryToHistory(query);
+    const result = await renderQuery(query);
+
+    // If the query modified the database, refresh the dropdown to keep
+    // names/counts in sync; otherwise highlight the table it reads from.
+    if (result && result.modified) {
+        await populateTableList();
+    } else {
+        const tableName = result && result.columns.find(column => column.table)?.table;
+        if (tableName && loadedTableNames.includes(tableName)) {
+            tableSelect.setValue(tableName, true);
         } else {
-            result.offset = 0;
-            result.max = parseInt(sqlRegex[1]);
+            tableSelect.clear(true);
         }
-
-        if (result.max == 0) {
-            result.pages = 0;
-            result.currentPage = 0;
-            return result;
-        }
-
-        const queryRowsCount = getQueryRowCount(query);
-        if (queryRowsCount != -1) {
-            result.pages = Math.ceil(queryRowsCount / result.max);
-        }
-        result.currentPage = Math.floor(result.offset / result.max) + 1;
-        result.rowCount = queryRowsCount;
-
-        return result;
-    } else {
-        return null;
     }
+
+    setHashParam("sql", query);
 }
 
-function setPage(el, next) {
+async function setPage(el, next) {
     if ($(el).hasClass("disabled")) return;
 
-    const query = editor.getValue();
-    const limit = parseLimitFromQuery(query);
-
-    let pageToSet = 0;
+    let page;
     if (typeof next !== "undefined") {
-        pageToSet = (next ? limit.currentPage : limit.currentPage - 2);
+        page = next ? viewState.page + 1 : viewState.page - 1;
+        if (page < 1) return;
     } else {
-        const page = window.prompt("Go to page");
-        if (!isNaN(page) && page >= 1 && page <= limit.pages) {
-            pageToSet = page - 1;
-        } else {
-            return;
-        }
+        const entered = Number(await showDialog("Go to page", String(viewState.page)));
+        if (!Number.isInteger(entered) || entered < 1) return;
+        page = entered;
     }
 
-    const offset = (pageToSet * limit.max);
-    editor.setValue(query.replace(SQL_LIMIT_REGEX, `LIMIT ${offset},${limit.max}`), -1);
-
-    executeSql();
+    await renderQuery(editor.toString(), page);
 }
 
-function refreshPagination(query) {
-    const limit = parseLimitFromQuery(query);
-    if (limit !== null && limit.pages > 0) {
-        const pager = $("#pager");
-        const pagePrev = $("#page-prev");
-        const pageNext = $("#page-next");
+// Bumped on every render so a late background count can't overwrite a newer page.
+let paginationRequest = 0;
 
-        pager.attr("title", `Row count: ${limit.rowCount}`);
-        bootstrap.Tooltip.getOrCreateInstance("#pager").hide();
-        pager.text(limit.currentPage + " / " + limit.pages);
+function updatePager(currentPage, { hasNext, totalPages = null, rowCount = 0 }) {
+    const pager = $("#pager");
+    const pagerTitle = totalPages !== null ? `Row count: ${rowCount}` : `Page ${currentPage}`;
 
-        if (limit.currentPage <= 1) {
-            pagePrev.addClass("disabled");
-        } else {
-            pagePrev.removeClass("disabled");
-        }
+    // A live tooltip keeps its original title, so drop the instance and re-seed
+    // the title; recreation happens here or in renderQuery's tooltip loop.
+    const pagerEl = document.getElementById("pager");
+    bootstrap.Tooltip.getInstance(pagerEl)?.dispose();
+    pagerEl.removeAttribute("data-bs-original-title");
+    pager.attr("title", pagerTitle);
+    bootstrap.Tooltip.getOrCreateInstance(pagerEl);
 
-        if ((limit.currentPage + 1) > limit.pages) {
-            pageNext.addClass("disabled");
-        } else {
-            pageNext.removeClass("disabled");
-        }
+    pager.text(totalPages !== null ? `${currentPage} / ${totalPages}` : String(currentPage));
+    $("#page-prev").toggleClass("disabled", currentPage <= 1);
+    $("#page-next").toggleClass("disabled", !hasNext);
+    setPagerVisible(true);
+}
 
-        setPagerVisible(true);
-    } else {
-        setPagerVisible(false);
-    }
+function refreshPagination(query, page, hasMore) {
+    const requestId = ++paginationRequest;
+    // Show the page number right away; assume a next page while this one is full.
+    updatePager(page, { hasNext: hasMore });
+
+    // Fill in the exact page total in the background.
+    sendWorkerMessage("count", { sql: query }).then(({ count }) => {
+        if (requestId !== paginationRequest || typeof count !== "number") return;
+        const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+        updatePager(page, { hasNext: page < totalPages, totalPages, rowCount: count });
+    }).catch(() => { /* keep the provisional pager */ });
 }
 
 function showError(msg) {
@@ -352,104 +575,198 @@ function showError(msg) {
     errorBox.text(msg);
 }
 
-function setPagerVisible(visible) {
-    $("#bottom-bar").toggleClass("d-none", !visible);
-    if (visible) {
-        $("#footer").attr("style", "margin-top: -0.75rem !important");
-    } else {
-        $("#footer").css("margin-top", "");
-    }
+// Report a fatal error (e.g. a failed load) in the in-page error box.
+function showErrorMessage(msg) {
+    $("#output-box").show();
+    showError(msg);
 }
 
-function htmlEncode(value) {
-    return $("<div/>").text(value).html();
-}
+// Small modal used in place of window.confirm/window.prompt. Without a default
+// value it resolves true/false; with one it resolves the entered string, or
+// null when cancelled.
+function showDialog(message, defaultValue) {
+    return new Promise((resolve) => {
+        const modalEl = document.getElementById("app-dialog");
+        const input = document.getElementById("app-dialog-input");
+        const okButton = document.getElementById("app-dialog-ok");
+        const isPrompt = defaultValue !== undefined;
 
-function renderQuery(query) {
-    const dataBox = $("#data");
-    const thead = dataBox.find("thead").find("tr");
-    const tbody = dataBox.find("tbody");
+        document.getElementById("app-dialog-message").textContent = message;
+        input.classList.toggle("d-none", !isPrompt);
+        input.value = isPrompt ? defaultValue : "";
 
-    thead.empty();
-    tbody.empty();
-    errorBox.hide();
-    infoBox.hide();
-    dataBox.show();
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        let result = isPrompt ? null : false;
 
-    let columnTypes = new Map();
-    const tableName = getTableNameFromQuery(query);
-    if (tableName != null) {
-        columnTypes = getTableColumnTypes(tableName);
-    }
-
-    let sel = null;
-    try {
-        sel = db.prepare(query);
-    } catch (ex) {
-        if (sel != null) {
-            sel.free();
-        }
-        showError(ex);
-        return;
-    }
-
-    let isEmptyTable = true;
-    const columnNames = sel.getColumnNames();
-    for (let i = 0; i < columnNames.length; i++) {
-        const columnName = columnNames[i];
-        const type = columnTypes.has(columnName) ? columnTypes.get(columnNames[i]) : "";
-        thead.append(`<th><span data-bs-toggle="tooltip" title="${type}">${columnNames[i]}</span></th>`);
-    }
-
-    while (sel.step()) {
-        isEmptyTable = false;
-        const tr = $('<tr>');
-        const s = sel.get();
-        for (let i = 0; i < s.length; i++) {
-            const columnName = columnNames[i];
-            const type = columnTypes.has(columnName) ? columnTypes.get(columnName).toLowerCase() : "";
-            if (type === "blob" || type === "blob sub_type binary") {
-                if (s[i] === null) {
-                    tr.append(`<td><span title="Blob">null</span></td>`);
-                } else {
-                    renderBlobItem(tr, s[i]);
-                }
-            } else {
-                let value = htmlEncode(s[i]);
-                tr.append(`<td><span title="${value}">${value}</span></td>`);
+        function onKeyDown(event) {
+            if (event.key === "Enter") {
+                result = isPrompt ? input.value : true;
+                modal.hide();
             }
         }
-        tbody.append(tr);
-    }
-    sel.free();
+        function onOk() {
+            result = isPrompt ? input.value : true;
+            modal.hide();
+        }
+        function onHidden() {
+            okButton.removeEventListener("click", onOk);
+            input.removeEventListener("keydown", onKeyDown);
+            resolve(result);
+        }
 
-    if (isEmptyTable) {
-        infoBox.text("No data for given select.");
+        okButton.addEventListener("click", onOk);
+        input.addEventListener("keydown", onKeyDown);
+        modalEl.addEventListener("hidden.bs.modal", onHidden, { once: true });
+
+        modal.show();
+        if (isPrompt) {
+            modalEl.addEventListener("shown.bs.modal", () => {
+                input.focus();
+                input.select();
+            }, { once: true });
+        }
+    });
+}
+
+// Show or hide the footer note that tells the user their edits are saved.
+function setStoragePersisted(persisted) {
+    $("#storage-note").toggleClass("d-none", !persisted);
+}
+
+function setPagerVisible(visible) {
+    $("#bottom-bar").toggleClass("d-none", !visible);
+    $("#footer").toggleClass("with-pager", visible);
+}
+
+// --- View builders ---
+function tableLabel(name, rowCount, type) {
+    const tableType = type !== "table" ? `, ${type}` : "";
+    return `${name} (${rowCount} rows${tableType})`;
+}
+
+function renderTableLabel(data, escape) {
+    const text = data.text ?? "";
+    const index = text.indexOf("(");
+    if (index > -1) {
+        return `<div>${escape(text.substring(0, index))}<span class="table-label-meta">${escape(text.substring(index - 1))}</span></div>`;
+    }
+    return `<div>${escape(text)}</div>`;
+}
+
+function headerCell(name, type) {
+    const th = document.createElement("th");
+    const label = document.createElement("span");
+    label.dataset.bsToggle = "tooltip";
+    label.title = type;
+    label.textContent = name;
+    th.append(label);
+    return th;
+}
+
+function dataCell(value) {
+    const td = document.createElement("td");
+    td.title = String(value);
+    td.textContent = String(value);
+    return td;
+}
+
+function nullBlobCell() {
+    const td = document.createElement("td");
+    td.title = "Blob";
+    td.textContent = "null";
+    return td;
+}
+
+function blobCell(bytes) {
+    const td = document.createElement("td");
+    td.title = "Blob";
+    const downloadLink = document.createElement("a");
+    downloadLink.href = "#";
+    downloadLink.textContent = `Download (${formatBytes(bytes.length)})`;
+    downloadLink.addEventListener("click", (event) => {
+        event.preventDefault();
+        saveAs(new Blob([bytes]), "blob");
+    });
+    td.append(downloadLink);
+    return td;
+}
+
+async function renderQuery(query, page = 1) {
+    const theadRow = document.querySelector("#data thead tr");
+    const tbody = document.querySelector("#data tbody");
+
+    errorBox.hide();
+    infoBox.hide();
+    $("#data").show();
+
+    let result;
+    try {
+        result = await sendWorkerMessage("query", { sql: query, page, pageSize: PAGE_SIZE });
+    } catch (ex) {
+        theadRow.replaceChildren();
+        tbody.replaceChildren();
+        setPagerVisible(false);
+        showError(ex.message || ex);
+        return null;
+    }
+
+    const { columns, values } = result;
+
+    if (columns.length) {
+        // Constraints come from PRAGMA table_info, looked up once per source
+        // table; the declared type comes from the statement metadata.
+        const tables = [...new Set(columns.map(column => column.table).filter(Boolean))];
+        const constraints = new Map();
+        await Promise.all(tables.map(async (table) => {
+            constraints.set(table, await getTableConstraints(table));
+        }));
+
+        // Build everything off-DOM and insert in one pass: appending each row
+        // to a live <tbody> would invalidate layout once per row.
+        const headerFragment = document.createDocumentFragment();
+        for (const column of columns) {
+            const perTable = column.table ? constraints.get(column.table) : null;
+            const constraint = perTable && column.origin ? perTable.get(column.origin) : "";
+            const headerType = [column.decltype, constraint].filter(Boolean).join(" ");
+            headerFragment.append(headerCell(column.name, headerType));
+        }
+        theadRow.replaceChildren(headerFragment);
+
+        const bodyFragment = document.createDocumentFragment();
+        for (const rowValues of values) {
+            const tr = document.createElement("tr");
+            for (let i = 0; i < rowValues.length; i++) {
+                const columnType = (columns[i].decltype || "").toLowerCase();
+                const value = rowValues[i];
+                if (columnType === "blob" || columnType === "blob sub_type binary") {
+                    tr.append(value === null ? nullBlobCell() : blobCell(value));
+                } else {
+                    tr.append(dataCell(value));
+                }
+            }
+            bodyFragment.append(tr);
+        }
+        tbody.replaceChildren(bodyFragment);
+    } else {
+        theadRow.replaceChildren();
+        tbody.replaceChildren();
+        infoBox.text("No data returned for the given query.");
         infoBox.show();
     }
 
-    refreshPagination(query);
+    if (result.paginated) {
+        viewState = { query, page };
+        refreshPagination(query, page, result.hasMore);
+    } else {
+        viewState = { query: "", page: 1 };
+        setPagerVisible(false);
+    }
 
-    // Enable tooltips
     document.querySelectorAll('[data-bs-toggle="tooltip"]')
-        .forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        .forEach(el => bootstrap.Tooltip.getOrCreateInstance(el));
 
-    dataBox.editableTableWidget();
-}
-
-function renderBlobItem(tr, bytes) {
-    const td = document.createElement("td");
-    const span = document.createElement("span");
-    span.title = "Blob";
-    const downloadLink = document.createElement("a");
-    downloadLink.href = "javascript:void(0)";
-    downloadLink.innerText = `Download (${formatBytes(bytes.length)})`;
-    downloadLink.onclick = function () {
-        saveAs(new Blob([bytes]), "blob");
-    };
-    span.append(downloadLink);
-    td.append(span);
-    tr.append(td);
+    if (result.modified) markDatabaseAltered();
+    return result;
 }
 
 function formatBytes(bytes,decimals) {
@@ -476,59 +793,106 @@ function arrayToCsv(data) {
     ).join('\r\n');  // rows starting on new lines
 }
 
-function exportCsvTableQuery(query) {
+async function exportCsvTableQuery(query) {
     let exportedRows = [];
-    let sel = null;
     try {
-        sel = db.prepare(query);
-    } catch (ex) {
-        if (sel != null) {
-            sel.free();
+        const res = await execSql(query);
+        if (res) {
+            exportedRows.push(res.columns);
+            exportedRows.push(...res.values);
         }
-        showError(ex);
+        return exportedRows;
+    } catch (ex) {
+        showError(ex.message || ex);
         setIsLoading(false);
         return null;
     }
-
-    const columnNames = sel.getColumnNames();
-
-    exportedRows.push(...[columnNames]);
-    while (sel.step()) {
-        const rows = sel.get();
-        exportedRows.push(...[rows]);
-    }
-    sel.free();
-    return exportedRows;
 }
 
-function exportCsvTable(tableName) {
-    return exportCsvTableQuery(`SELECT * FROM '${tableName}'`);
+async function exportCsvTable(tableName) {
+    return await exportCsvTableQuery(`SELECT * FROM ${quoteIdentifier(tableName)}`);
 }
 
-function exportAllToCsv() {
+// fflate's async API is callback-based; wrap it in a promise.
+function zipFiles(files) {
+    return new Promise((resolve, reject) => {
+        // level 6 = DEFLATE: much smaller CSV exports for a little CPU.
+        fflate.zip(files, { level: 6 }, (err, data) => (err ? reject(err) : resolve(data)));
+    });
+}
+
+// Base name for downloaded database files, derived from the loaded DB name.
+function databaseFileName(extension) {
+    const base = currentDbName.replace(/\.(sqlite3?|db3?|zip)$/i, "") || "database";
+    return base + extension;
+}
+
+// The database-download items stay disabled until the in-memory database has
+// actually been changed (exporting an untouched copy is pointless).
+function updateDatabaseExportItems() {
+    const disabled = !databaseAltered;
+    $('[data-action="export-db"], [data-action="export-db-zip"]').each(function () {
+        this.classList.toggle("disabled", disabled);
+        this.setAttribute("aria-disabled", String(disabled));
+        if (disabled) this.setAttribute("tabindex", "-1");
+        else this.removeAttribute("tabindex");
+    });
+}
+
+function markDatabaseAltered() {
+    if (databaseAltered) return;
+    databaseAltered = true;
+    updateDatabaseExportItems();
+}
+
+function resetDatabaseAltered() {
+    databaseAltered = false;
+    updateDatabaseExportItems();
+}
+
+// Download the in-memory database, as a .sqlite file or zipped.
+async function exportDatabase(zipped) {
     setIsLoading(true);
-    const zip = new JSZip();
-    for (const tableName of loadedTableNames) {
-        const exportedRows = exportCsvTable(tableName);
-        if (exportedRows != null) {
-            zip.file(tableName + ".csv", arrayToCsv(exportedRows));
+    try {
+        const { buffer } = await sendWorkerMessage("export");
+        const sqliteName = databaseFileName(".sqlite");
+        if (zipped) {
+            const zip = await zipFiles({ [sqliteName]: new Uint8Array(buffer) });
+            saveAs(new Blob([zip], { type: "application/zip" }), databaseFileName(".zip"));
         } else {
-            return;
+            saveAs(new Blob([buffer], { type: "application/vnd.sqlite3" }), sqliteName);
         }
+    } catch (e) {
+        showError(e.message || e);
     }
-
-    zip.generateAsync({type: "blob"})
-        .then(function (content) {
-            saveAs(content, "exported_all_db.zip");
-        });
     setIsLoading(false);
 }
 
-function exportSelectedTableToCsv() {
-    const tableName = $("#tables").val();
+async function exportAllToCsv() {
+    setIsLoading(true);
+    try {
+        const files = {};
+        for (const tableName of loadedTableNames) {
+            const exportedRows = await exportCsvTable(tableName);
+            if (exportedRows == null) {
+                setIsLoading(false);
+                return;
+            }
+            files[tableName + ".csv"] = fflate.strToU8(arrayToCsv(exportedRows));
+        }
+
+        saveAs(new Blob([await zipFiles(files)]), "exported_all_db.zip");
+    } catch (e) {
+        showError(e.message || e);
+    }
+    setIsLoading(false);
+}
+
+async function exportSelectedTableToCsv() {
+    const tableName = tableSelect.getValue();
     setIsLoading(true);
 
-    const exportedRows = exportCsvTable(tableName);
+    const exportedRows = await exportCsvTable(tableName);
     if (exportedRows != null) {
         const blob = new Blob([arrayToCsv(exportedRows)], {type: "text/plain;charset=utf-8"});
         saveAs(blob, "exported_" + tableName.toLowerCase() + "_db.csv");
@@ -537,15 +901,154 @@ function exportSelectedTableToCsv() {
     setIsLoading(false);
 }
 
-function exportQueryTableToCsv() {
+async function exportQueryTableToCsv() {
     setIsLoading(true);
 
-    const query = editor.getValue();
-    const exportedRows = exportCsvTableQuery(query);
+    const query = editor.toString();
+    const exportedRows = await exportCsvTableQuery(query);
     if (exportedRows != null) {
         const blob = new Blob([arrayToCsv(exportedRows)], {type: "text/plain;charset=utf-8"});
-        saveAs(blob, "exported_" + getTableNameFromQuery(query).toLowerCase() + "_db.csv");
+        // The query need not target a single table, so name the file after the DB.
+        saveAs(blob, databaseFileName(".csv"));
     }
 
     setIsLoading(false);
+}
+
+// --- Partitioned Query History API ---
+const HISTORY_PREFIX = "sqlite_viewer_history_";
+const MAX_HISTORY_ITEMS = 50;
+
+function getActiveStorageKey() {
+    return HISTORY_PREFIX + currentDbKey;
+}
+
+function getQueryHistory() {
+    try {
+        const key = getActiveStorageKey();
+        const stored = localStorage.getItem(key);
+        return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+        console.error("Failed to read history from localStorage:", e);
+        return [];
+    }
+}
+
+function saveQueryToHistory(sql) {
+    if (!sql || sql.trim() === "" || currentDbKey === "default") return;
+
+    let historyList = getQueryHistory();
+    
+    // Move duplicate queries to the top
+    historyList = historyList.filter(item => item.sql.trim() !== sql.trim());
+    
+    historyList.unshift({
+        sql: sql.trim(),
+        timestamp: Date.now()
+    });
+
+    if (historyList.length > MAX_HISTORY_ITEMS) {
+        historyList = historyList.slice(0, MAX_HISTORY_ITEMS);
+    }
+
+    localStorage.setItem(getActiveStorageKey(), JSON.stringify(historyList));
+    renderQueryHistory();
+}
+
+async function clearQueryHistory() {
+    if (await showDialog("Are you sure you want to clear history for this database?")) {
+        localStorage.removeItem(getActiveStorageKey());
+        renderQueryHistory();
+    }
+}
+
+async function clearAllDatabasesHistory() {
+    if (await showDialog("This will permanently delete query histories for ALL databases. Proceed?")) {
+        Object.keys(localStorage)
+            .filter(key => key.startsWith(HISTORY_PREFIX))
+            .forEach(key => localStorage.removeItem(key));
+        renderQueryHistory();
+    }
+}
+
+function deleteHistoryItem(index) {
+    let historyList = getQueryHistory();
+    historyList.splice(index, 1);
+    localStorage.setItem(getActiveStorageKey(), JSON.stringify(historyList));
+    renderQueryHistory();
+}
+
+async function copyQueryToClipboard(sql) {
+    if (window.isSecureContext && navigator.clipboard) {
+        try {
+            await navigator.clipboard.writeText(sql);
+            return;
+        } catch (e) {
+            console.error("Clipboard API copy failed, falling back:", e);
+        }
+    }
+
+    // Fallback for insecure contexts: a temporary textarea inside the
+    // offcanvas (to stay within Bootstrap's focus trap) plus execCommand.
+    const ta = document.createElement("textarea");
+    ta.value = sql;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.opacity = "0";
+    const container = document.getElementById("history-sidebar") || document.body;
+    container.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch (_) {}
+    container.removeChild(ta);
+}
+
+function loadQueryFromHistory(sql) {
+    editor.updateCode(sql);
+    executeSql();
+    
+    // Close offcanvas sidebar
+    const offcanvasEl = document.getElementById("history-sidebar");
+    if (offcanvasEl && typeof bootstrap !== "undefined" && bootstrap.Offcanvas) {
+        const offcanvas = bootstrap.Offcanvas.getInstance(offcanvasEl);
+        if (offcanvas) offcanvas.hide();
+    }
+}
+
+// Clone the first element of a <template> by id.
+function cloneTemplate(id) {
+    return document.getElementById(id).content.firstElementChild.cloneNode(true);
+}
+
+function renderQueryHistory() {
+    const historyListContainer = $("#history-list");
+    if (historyListContainer.length === 0) return;
+    
+    const historyList = getQueryHistory();
+    
+    $("#history-count").text(`${historyList.length} queries saved`);
+    historyListContainer.empty();
+
+    // Friendly database name shown in the offcanvas header
+    $("#history-sidebar-label").text(`History: ${currentDbName}`);
+
+    if (historyList.length === 0) {
+        historyListContainer.append(cloneTemplate("tmpl-history-empty"));
+        return;
+    }
+
+    historyList.forEach((item, index) => {
+        const card = cloneTemplate("tmpl-history-card");
+        card.querySelector("small").textContent = new Date(item.timestamp).toLocaleString();
+
+        const sqlPreview = card.querySelector('[data-action="load"]');
+        sqlPreview.textContent = item.sql;
+        sqlPreview.addEventListener("click", () => loadQueryFromHistory(item.sql));
+
+        card.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHistoryItem(index));
+        card.querySelector('[data-action="run"]').addEventListener("click", () => loadQueryFromHistory(item.sql));
+        card.querySelector('[data-action="copy"]').addEventListener("click", () => copyQueryToClipboard(item.sql));
+
+        historyListContainer.append(card);
+    });
 }
